@@ -1,0 +1,6 @@
+{
+  "name": "Autonomous Signal Churner & Temporal Feedback Engine",
+  "description": "Autonomous multi-criteria trading intelligence pipeline powered by Grey Model GM(1,1) prediction, Neutrosophic AHP conflict consensus, TOPSIS ranking, Fractal Confluence, Liquidity Heatmaps, and Grey Relational Feedback calibration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
