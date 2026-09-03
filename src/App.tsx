@@ -17,6 +17,8 @@ import {
 } from './types';
 import { Header } from './components/Header';
 import { MinimalistPulseView } from './components/MinimalistPulseView';
+import { SignalPortMonitorView } from './components/SignalPortMonitorView';
+import { SoulGiverAdapterHub } from './components/SoulGiverAdapterHub';
 import { MarketRadarView } from './components/MarketRadarView';
 import { AuditorIntelligenceView } from './components/AuditorIntelligenceView';
 import { EngineDiagnosticsView } from './components/EngineDiagnosticsView';
@@ -43,7 +45,7 @@ export default function App() {
     try {
       if (typeof window !== 'undefined') {
         const saved = localStorage.getItem('ai_studio_active_tab') as NavTab;
-        if (saved && ['DASHBOARD', 'MARKET', 'AUDITOR', 'SETTINGS'].includes(saved)) {
+        if (saved && ['DASHBOARD', 'SIGNAL_PORT', 'SOUL_ADAPTER', 'MARKET', 'AUDITOR', 'SETTINGS'].includes(saved)) {
           return saved;
         }
       }
@@ -365,10 +367,29 @@ export default function App() {
                   onToggleRunning={handleToggleRunning}
                   onSingleStep={handleSingleStep}
                   onOpenAiAudit={() => setIsAiModalOpen(true)}
+                  onNavigateToSoulAdapter={() => handleSelectTab('SOUL_ADAPTER')}
+                  onNavigateToSignalPort={() => handleSelectTab('SIGNAL_PORT')}
                   apis={apis}
                   latencyMs={latencyMs}
                   isBackendConnected={isBackendConnected}
                   serverTickCount={serverTickCount}
+                />
+              )}
+
+              {/* Layer 1.2: The Super Signal Siphon Port & External Consumer Radar */}
+              {activeTab === 'SIGNAL_PORT' && (
+                <SignalPortMonitorView
+                  signals={signals}
+                  onOpenAiAudit={() => setIsAiModalOpen(true)}
+                />
+              )}
+
+              {/* Layer 1.5: The Soul Giver Universal Adapter & Learning Mesh */}
+              {activeTab === 'SOUL_ADAPTER' && (
+                <SoulGiverAdapterHub
+                  signals={signals}
+                  marketState={marketState}
+                  onOpenAiAudit={() => setIsAiModalOpen(true)}
                 />
               )}
 

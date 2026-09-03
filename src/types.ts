@@ -323,3 +323,275 @@ export interface PipelineStats {
   activeGate1Threshold?: number; // e.g. 0.02 (2%) or 0.01 (1%)
   monitoredFuturesPairsCount?: number;
 }
+
+export interface DailyAccuracy {
+  date: string;
+  wins: number;
+  losses: number;
+  winRate: number;                     // 0–100 derived from wins & losses
+  lossRate: number;                    // 0–100 derived from wins & losses
+  predictionConfidence: number | null; // 0–100 calibrated model probability, null if uncalibrated/missing
+  resolvedSignals: number;             // sample size n = wins + losses
+}
+
+export interface CalibrationMetrics {
+  meanPredictedProbability: number | null;
+  empiricalWinRate: number | null;
+  brierScore: number | null;
+  expectedCalibrationError: number | null;
+  calibrationSampleSize: number;
+  calibrationWindow: string;
+  wilsonIntervalLowerPct: number;
+  wilsonIntervalUpperPct: number;
+  calibrationStatus: 'INSUFFICIENT_SAMPLE' | 'CALIBRATED' | 'OVERCONFIDENT' | 'UNDERCONFIDENT';
+}
+
+// ---------------------------------------------------------
+// SOUL GIVER: Autonomous Trading Adapter & Collective Learning Mesh
+// ---------------------------------------------------------
+
+export type SoulNodeType =
+  | 'EXCHANGE_BOT'
+  | 'TRADINGVIEW_WEBHOOK'
+  | 'PYTHON_AGENT'
+  | 'TELEGRAM_DISPATCH'
+  | 'CCXT_RUNNER'
+  | 'CUSTOM_SOCKET';
+
+export interface NodeMeshItem {
+  id: string;
+  nodeIdentity: string; // e.g. 'TradingView_User_A', 'Python_Script_B'
+  nodeType: SoulNodeType;
+  activeStatus: 'TRADE_OPEN' | 'IDLE' | 'FLAGGED_DRIFT' | 'DISCONNECTED';
+  openTrade?: {
+    asset: string;
+    direction: 'LONG' | 'SHORT';
+    entryPrice: number;
+    currentPrice: number;
+    unrealizedPnlPct: number;
+    startedAt: string;
+  };
+  signalPrecisionPct: number; // e.g. 95.0%
+  realizedPrecisionPct: number; // e.g. 92.4%
+  precisionDeltaPct: number; // e.g. -2.6%
+  slippagePct: number; // e.g. 0.0018 (0.18%)
+  entryLagPct: number; // e.g. 0.12%
+  hasDriftAlert: boolean; // True if slippage > 0.008 or entryLagPct > 0.20%
+  driftReason?: string;
+  reputationScore: number; // 0 to 100
+  reputationRank: 'RANK_1_ALPHA_MASTER' | 'RANK_2_TIER_1_ELITE' | 'RANK_3_STABLE_RUNNER' | 'RANK_WARNING_AUDIT';
+  totalTrades: number;
+  totalPnlUsd: number;
+  lastOutcomeTimestamp: string;
+  apiKeyPrefix: string;
+}
+
+export interface NodeApiKey {
+  id: string;
+  key: string;
+  nodeIdentity: string;
+  tier: 'ALL_SIGNALS' | 'PREMIUM_95' | 'ULTRA_98';
+  createdAt: string;
+  expiresAt: string;
+  rateLimitPerMin: number;
+  isActive: boolean;
+  totalCalls: number;
+}
+
+// ---------------------------------------------------------
+// PERFECT FORESIGHT BENCHMARK & STRATEGY AUDIT
+// ---------------------------------------------------------
+
+export interface ForesightSignalAuditItem {
+  signalId: string;
+  asset: string;
+  futuresPair: string;
+  direction: 'LONG' | 'SHORT';
+  timestamp: string;
+  ciConfidence: number; // e.g. 0.97
+  entryPrice: number;
+  tp1Price: number; // Target 1 (+2.4%)
+  slPrice: number; // Stop Loss (-1.2%)
+  maxFavorablePrice: number;
+  maxAdversePrice: number;
+  subsequentHigh60m: number;
+  subsequentLow60m: number;
+  maePct: number; // Max Adverse Excursion (Dope < 0.5%)
+  mfePct: number; // Max Favorable Excursion (Dope > 3.0%)
+  silenceDeltaSeconds: number; // Lead time before breakout, e.g. +42s
+  result: 'TP1_HIT' | 'SL_HIT' | 'OUT_OF_TIME';
+  durationToTargetMin: number;
+  isDopeCertified: boolean; // MAE < 0.5% or MFE > 3.0% and TP1 Hit
+  criteriaVector: {
+    bitqueryWhaleFlowScore: number;
+    kaikoOrderbookDepthScore: number;
+    stSvnwaSineHarmonics: number;
+    topsisRelativeCloseness: number;
+  };
+}
+
+export interface ForesightAuditReport {
+  sampleSize: number;
+  tp1HitRatePct: number; // 60% baseline
+  slHitRatePct: number; // 30% baseline
+  outOfTimePct: number; // 10% baseline
+  foresightPrecisionPct: number;
+  avgMfeWinnersPct: number; // +3.07%
+  avgMaeLosersPct: number; // 1.45%
+  avgSilenceDeltaSeconds: number; // 42s
+  isOptimizationApplied: boolean;
+  optimizedAt?: string;
+  evaluationVerdict: string;
+  signals: ForesightSignalAuditItem[];
+}
+
+export interface ParameterOptimizationState {
+  isApplied: boolean;
+  topsisWeights: {
+    bitqueryWhaleFlow: number; // 0.35 (shifted +15%)
+    kaikoOrderbookDepth: number; // 0.35 (shifted +15%)
+    stSvnwaHarmonics: number; // 0.15
+    tcnsFreshness: number; // 0.15
+  };
+  entrySelectivityFloorIncreasePct: number; // 15%
+  liquidityFilterRequirement: string;
+  appliedAt: string;
+}
+
+export interface SoulConnectedNode {
+  id: string;
+  name: string;
+  type: SoulNodeType;
+  exchange?: string;
+  status: 'PLUGGED_IN' | 'LISTENING' | 'IDLE' | 'DISCONNECTED';
+  connectedAt: string;
+  tradesExecuted: number;
+  outcomesShared: number;
+  avgSlippageBps: number;
+  realizedPnlUsd: number;
+  reputationScore: number; // 0 to 100
+  latencyMs: number;
+  apiKeyMasked?: string;
+  webhookUrl?: string;
+}
+
+export interface SoulSharedTradeOutcome {
+  id: string;
+  nodeId: string;
+  nodeName: string;
+  signalId: string;
+  asset: string;
+  futuresPair: string;
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  exitPrice: number;
+  pnlPct: number;
+  slippageBps: number;
+  fillLatencyMs: number;
+  marketRegime: string;
+  timestamp: string;
+  wasProfitable: boolean;
+  learningWeightDelta: number; // Quantitative weight adjustment made to the engine
+  contributedInsights: string;
+}
+
+export interface SoulAdapterConfig {
+  webhookSecret: string;
+  webhookEndpoint: string;
+  autoDispatchSignals: boolean;
+  minConfidenceThreshold: number; // e.g. 0.95 (95%)
+  maxAllocationPerTradePct: number; // e.g. 5%
+  defaultLeverage: number; // e.g. 3x
+  supportedExchanges: string[];
+  collectiveLearningOptIn: boolean;
+}
+
+export interface SoulMeshStats {
+  activeNodesCount: number;
+  totalOutcomesShared: number;
+  collectiveAccuracyImprovementPct: number; // e.g. +3.12%
+  learningEpoch: number;
+  totalVolumeGuidedUsd: number;
+  averageExecutionSlippageBps: number;
+  lastTrainedAt: string;
+}
+
+// ---------------------------------------------------------
+// SIGNAL SIPHON PORT & EXTERNAL APP MONITOR
+// ---------------------------------------------------------
+
+export type ConsumerAppType =
+  | 'PYTHON_QUANT'
+  | 'TELEGRAM_BOT'
+  | 'RUST_HFT'
+  | 'NODE_EXECUTOR'
+  | 'TRADINGVIEW_PINE'
+  | 'CUSTOM_ENGINE';
+
+export type ConsumerProtocol = 'SSE_STREAM' | 'REST_SIPHON' | 'WEBSOCKET' | 'WEBHOOK_PUSH';
+
+export interface ExternalAppTrade {
+  id: string;
+  appId: string;
+  appName: string;
+  signalId: string;
+  asset: string;
+  direction: 'LONG' | 'SHORT';
+  entryPrice: number;
+  currentPrice: number;
+  targetPrice: number;
+  stopLoss: number;
+  status: 'OPEN' | 'TARGET_HIT' | 'STOPPED_OUT' | 'CLOSED';
+  pnlPct: number;
+  pnlUsd: number;
+  slippageBps: number;
+  durationMinutes: number;
+  timestamp: string;
+  effectivenessRating: 'EXCELLENT' | 'HIGH' | 'MODERATE' | 'POOR';
+}
+
+export interface ExternalConsumerApp {
+  id: string;
+  name: string;
+  appType: ConsumerAppType;
+  connectedSince: string;
+  remoteIp: string;
+  protocol: ConsumerProtocol;
+  status: 'STREAMING' | 'SUCKING' | 'IDLE' | 'DISCONNECTED';
+  signalsSucked: number;
+  tradesExecuted: number;
+  tradesWon: number;
+  tradesLost: number;
+  winRatePct: number;
+  totalPnlUsd: number;
+  totalPnlPct: number;
+  avgExecutionSlippageBps: number;
+  avgExecutionLatencyMs: number;
+  efficacyScore: number; // 0 to 100
+  lastSignalSucked: string;
+  lastActiveTime: string;
+  accessTier: 'ALL_SUPER_SIGNALS' | 'PREMIUM_CONVICTION_95' | 'ULTRA_CONVICTION_98';
+  recentTrades: ExternalAppTrade[];
+}
+
+export interface SignalPortConfig {
+  portNumber: number;
+  streamEndpoint: string;
+  suckSignalsEndpoint: string;
+  reportTradeEndpoint: string;
+  activeApiKey: string;
+  isPortOpen: boolean;
+  minConvictionFloor: number;
+  totalDataTransferredKb: number;
+}
+
+export interface SiphonActivityEvent {
+  id: string;
+  timestamp: string;
+  appId: string;
+  appName: string;
+  eventType: 'APP_CONNECTED' | 'SIGNAL_SUCKED' | 'TRADE_OPENED' | 'TARGET_REACHED' | 'EFFICACY_EVALUATED';
+  detail: string;
+  asset?: string;
+  pnlDelta?: number;
+}

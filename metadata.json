@@ -1,6 +1,6 @@
 {
   "name": "Autonomous Signal Churner & Temporal Feedback Engine",
-  "description": "Autonomous multi-criteria trading intelligence pipeline powered by Grey Model GM(1,1) prediction, Neutrosophic AHP conflict consensus, TOPSIS ranking, Fractal Confluence, Liquidity Heatmaps, and Grey Relational Feedback calibration.",
+  "description": "Autonomous multi-criteria trading intelligence pipeline with the Super Signal Siphon Port (Port 8443) for external bots to stream signals, real-time connected consumer monitor, trade efficacy tracking, Soul Giver adapter, and collective learning mesh.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

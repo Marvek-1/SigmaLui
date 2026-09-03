@@ -28,10 +28,12 @@ import {
   AlertTriangle,
   Flame,
   CheckCircle2,
+  Plug,
+  Share2,
 } from 'lucide-react';
 import { MarketState, PipelineStats } from '../types';
 
-export type NavTab = 'DASHBOARD' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
+export type NavTab = 'DASHBOARD' | 'SIGNAL_PORT' | 'SOUL_ADAPTER' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
 export type MarketSubTab = 'UNIVERSE' | 'ORDERBOOK_DEPTH';
 export type AuditorSubTab =
   | 'SOAK_TEST'
@@ -143,22 +145,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navGroups = [
     {
       id: 'DASHBOARD' as const,
-      label: 'Command Center',
-      sublabel: 'The Pulse & Live Cards',
+      label: 'Live Signals',
+      sublabel: 'Trades & Performance',
       icon: Activity,
-      badge: `${stats.successRatePct.toFixed(1)}% SLA`,
+      badge: `${stats.successRatePct.toFixed(1)}% Win Rate`,
       badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-800',
       items: [
         {
           id: 'PULSE',
-          label: 'The Pulse & Traffic Light',
+          label: 'Overview & Status',
           icon: Zap,
           onClick: () => onSelectTab('DASHBOARD'),
           isActive: activeTab === 'DASHBOARD',
         },
         {
           id: 'SIGNALS',
-          label: 'Active Opportunities (>95%)',
+          label: 'Active Trade Signals',
           icon: Target,
           badge: `${signalsCount}`,
           onClick: () => onSelectTab('DASHBOARD'),
@@ -166,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'LEDGER',
-          label: 'Daily Win/Loss Ledger',
+          label: 'Daily Win/Loss History',
           icon: FileText,
           badge: `${stats.successfulSignals}W / ${stats.failedSignals}L`,
           onClick: () => onSelectTab('DASHBOARD'),
@@ -175,16 +177,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
+      id: 'SIGNAL_PORT' as const,
+      label: 'Super Signal Port',
+      sublabel: 'Port 8443 Siphon & Progress Radar',
+      icon: Radio,
+      badge: 'Port 8443 Live',
+      badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-800',
+      items: [
+        {
+          id: 'ACTIVE_SIPHON_APPS',
+          label: 'External App Monitor',
+          icon: Activity,
+          badge: '5 Apps Sucking',
+          onClick: () => onSelectTab('SIGNAL_PORT'),
+          isActive: activeTab === 'SIGNAL_PORT',
+        },
+        {
+          id: 'TRADE_EFFICACY_RADAR',
+          label: 'Signal Trade Efficacy',
+          icon: Target,
+          badge: '85.6% Win Rate',
+          onClick: () => onSelectTab('SIGNAL_PORT'),
+          isActive: activeTab === 'SIGNAL_PORT',
+        },
+        {
+          id: 'SIPHON_HUB_CODES',
+          label: 'Port Hub & Code Snippets',
+          icon: Code,
+          badge: 'Python/Rust/cURL',
+          onClick: () => onSelectTab('SIGNAL_PORT'),
+          isActive: activeTab === 'SIGNAL_PORT',
+        },
+      ],
+    },
+    {
+      id: 'SOUL_ADAPTER' as const,
+      label: 'Soul Giver Adapter',
+      sublabel: 'Trading Adapter & Learning Mesh',
+      icon: Flame,
+      badge: 'Active Hub',
+      badgeColor: 'bg-indigo-950 text-indigo-300 border-indigo-800',
+      items: [
+        {
+          id: 'PLUG_ADAPTERS',
+          label: 'Plug & Play Adapters',
+          icon: Plug,
+          badge: 'Webhooks & APIs',
+          onClick: () => onSelectTab('SOUL_ADAPTER'),
+          isActive: activeTab === 'SOUL_ADAPTER',
+        },
+        {
+          id: 'COLLECTIVE_GROWTH',
+          label: 'Collective Data Sharing',
+          icon: Share2,
+          badge: 'Growth Loop',
+          onClick: () => onSelectTab('SOUL_ADAPTER'),
+          isActive: activeTab === 'SOUL_ADAPTER',
+        },
+      ],
+    },
+    {
       id: 'MARKET' as const,
       label: 'Market Radar',
-      sublabel: 'Universe & Depth',
+      sublabel: 'Watchlist & Depth',
       icon: Compass,
-      badge: `${perpsCount} PERPs`,
+      badge: `${perpsCount} Coins`,
       badgeColor: 'bg-amber-950 text-amber-300 border-amber-800',
       items: [
         {
           id: 'UNIVERSE' as MarketSubTab,
-          label: '30+ Futures Universe (6 Sectors)',
+          label: '30+ Crypto Watchlist',
           icon: Coins,
           badge: `${perpsCount}`,
           onClick: () => {
@@ -195,9 +257,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'ORDERBOOK_DEPTH' as MarketSubTab,
-          label: 'Orderbook Depth & Slippage',
+          label: 'Orderbook Depth & Spread',
           icon: Layers,
-          badge: 'Gate 3',
+          badge: 'Live Depth',
           onClick: () => {
             onSelectTab('MARKET');
             onSelectMarketSubTab('ORDERBOOK_DEPTH');
@@ -208,17 +270,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'AUDITOR' as const,
-      label: 'Auditor & Intelligence',
-      sublabel: 'Insights & Verification',
+      label: 'Trade Tracker & Audit',
+      sublabel: 'Accuracy & Safety Logs',
       icon: ShieldCheck,
-      badge: `${discardsCount} Discards`,
+      badge: `${discardsCount} Filtered`,
       badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-800',
       items: [
         {
           id: 'SOAK_TEST' as AuditorSubTab,
-          label: '48h Soak Test & TP1 Hunt',
+          label: 'Live Trade Tracker',
           icon: Target,
-          badge: '5 Positions',
+          badge: '5 Tracked',
           onClick: () => {
             onSelectTab('AUDITOR');
             onSelectAuditorSubTab('SOAK_TEST');
@@ -227,7 +289,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'VERIFICATION' as AuditorSubTab,
-          label: 'SLA & Stress Verification',
+          label: 'Win Rate Verification',
           icon: ShieldCheck,
           badge: `${stats.successRatePct.toFixed(1)}%`,
           onClick: () => {
@@ -238,7 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'DISCARD_STREAM' as AuditorSubTab,
-          label: 'Signal & Discard Stream',
+          label: 'Blocked Risky Trades',
           icon: Radio,
           badge: `${discardsCount}`,
           onClick: () => {
@@ -249,7 +311,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'RESEARCH_AGENTS' as AuditorSubTab,
-          label: 'Autonomous Research Agents',
+          label: 'AI Research Agents',
           icon: BrainCircuit,
           badge: '4 Agents',
           onClick: () => {
@@ -260,9 +322,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'FEEDBACK_CALIBRATION' as AuditorSubTab,
-          label: 'GRA Self-Correction & Tuning',
+          label: 'Model Auto-Calibration',
           icon: RotateCcw,
-          badge: 'Alpha',
+          badge: 'Active',
           onClick: () => {
             onSelectTab('AUDITOR');
             onSelectAuditorSubTab('FEEDBACK_CALIBRATION');
@@ -273,15 +335,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'SETTINGS' as const,
-      label: 'Engine Diagnostics',
-      sublabel: 'Core Infrastructure',
+      label: 'System & Feeds',
+      sublabel: 'Exchanges & Engine',
       icon: Settings,
-      badge: `${onlineApisCount}/20 APIs`,
+      badge: `${onlineApisCount}/20 Online`,
       badgeColor: 'bg-purple-950 text-purple-300 border-purple-800',
       items: [
         {
           id: 'APIS' as SettingsSubTab,
-          label: '20 Ingestion Harvesters',
+          label: '20 Exchange Feeds',
           icon: Server,
           badge: `${onlineApisCount}/20`,
           onClick: () => {
@@ -292,7 +354,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'ARCHITECTURE' as SettingsSubTab,
-          label: 'Microservices Flowchart',
+          label: 'System Flowchart',
           icon: Workflow,
           onClick: () => {
             onSelectTab('SETTINGS');
@@ -302,9 +364,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'GATE1_PYTHON' as SettingsSubTab,
-          label: 'Gate 1 GM(1,1) Python Core',
+          label: 'Prediction Engine',
           icon: Code,
-          badge: 'MRPE ≤5%',
+          badge: 'Active',
           onClick: () => {
             onSelectTab('SETTINGS');
             onSelectSettingsSubTab('GATE1_PYTHON');
@@ -313,9 +375,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'NEUTROSOPHIC_CONSENSUS' as SettingsSubTab,
-          label: 'Neutrosophic Matrix & TOPSIS',
+          label: 'Multi-Exchange Consensus',
           icon: Scale,
-          badge: 'Gate 2',
+          badge: 'Consensus',
           onClick: () => {
             onSelectTab('SETTINGS');
             onSelectSettingsSubTab('NEUTROSOPHIC_CONSENSUS');
@@ -324,7 +386,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'GREY_LAB' as SettingsSubTab,
-          label: 'Grey Predictor Lab (Sandbox)',
+          label: 'Algorithm Sandbox',
           icon: LineChart,
           onClick: () => {
             onSelectTab('SETTINGS');
