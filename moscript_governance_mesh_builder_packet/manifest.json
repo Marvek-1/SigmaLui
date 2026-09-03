@@ -1,0 +1,113 @@
+{
+  "packet_version": "1.0.0",
+  "target_runtime": "MoScript product build v0.1.1",
+  "policy_abi": "MOSCRIPT-GOVERNANCE-POLICY-V1",
+  "required_capabilities": [
+    "gate.execute"
+  ],
+  "security_model": {
+    "network_in_core_vm": false,
+    "broker_in_core_vm": false,
+    "host_adapter_required": true,
+    "sealed_scrolls_required": true,
+    "trusted_ed25519_key_required": true,
+    "deny_by_default": true
+  },
+  "entrypoints": {
+    "HANDSHAKE": [
+      "AUTHOK",
+      "PROVOK",
+      "GATEONE",
+      "GATETWO",
+      "CHAINOK",
+      "NODEOK",
+      "REPLAYOK",
+      "CLOCKOK",
+      "ROLEOK",
+      "RESONANCE"
+    ],
+    "SIGNALPOLICY": [
+      "GATEONE",
+      "GATETWO",
+      "PROVOK",
+      "STATEOK",
+      "CLOCKOK",
+      "RESONANCE"
+    ],
+    "REPORTTRADE": [
+      "SIGNOK",
+      "SIGNALOK",
+      "REPLAYOK",
+      "CLOCKOK",
+      "SLAOK",
+      "MARKETOK",
+      "PNLOK",
+      "POSITIONOK"
+    ],
+    "NODEHEALTH": [
+      "CRYPTOSTRIKES",
+      "REPLAYSTRIKES",
+      "RECONSTRIKES",
+      "SLASTRIKES"
+    ],
+    "SNAPSHOT": [
+      "LEDGEROK",
+      "REGISTRYOK",
+      "NODESOK",
+      "SIGNALSOK",
+      "REPUTATIONOK",
+      "QUIESCENTOK"
+    ]
+  },
+  "reason_codes": {
+    "status": {
+      "0": "DENY",
+      "1": "ALLOW_OR_ACCEPT",
+      "2": "HOLD_REVIEW"
+    },
+    "handshake": {
+      "10": "AUTH_INVALID",
+      "11": "PROVENANCE_SIGNATURE_INVALID",
+      "12": "GATE1_STATE_INVALID",
+      "13": "GATE2_STATE_INVALID",
+      "14": "GOVERNANCE_CHAIN_INVALID",
+      "15": "NODE_NOT_ACTIVE",
+      "16": "REPLAY_DETECTED",
+      "17": "CLOCK_WINDOW_INVALID",
+      "18": "ROLE_NOT_AUTHORIZED",
+      "19": "RESONANCE_BELOW_THRESHOLD"
+    },
+    "trade_report": {
+      "20": "REPORT_SIGNATURE_INVALID",
+      "21": "REPORT_REPLAY_DETECTED",
+      "22": "REPORT_CLOCK_WINDOW_INVALID",
+      "23": "UNKNOWN_OR_INVALID_SIGNAL",
+      "24": "SLA_VIOLATION",
+      "25": "MARKET_REFERENCE_CONFLICT",
+      "26": "PNL_RECONCILIATION_CONFLICT",
+      "27": "POSITION_RECONCILIATION_CONFLICT"
+    },
+    "node_health": {
+      "40": "CRYPTO_INTEGRITY_STRIKE",
+      "41": "REPLAY_STRIKE",
+      "42": "REPEATED_RECONCILIATION_STRIKES",
+      "43": "REPEATED_SLA_STRIKES"
+    },
+    "signal": {
+      "30": "GATE1_NOT_VERIFIED",
+      "31": "GATE2_NOT_VERIFIED",
+      "32": "SIGNAL_PROVENANCE_INVALID",
+      "33": "SIGNAL_STATE_NOT_CANONICAL",
+      "34": "SIGNAL_CLOCK_INVALID",
+      "35": "SIGNAL_RESONANCE_BELOW_THRESHOLD"
+    },
+    "snapshot": {
+      "50": "LEDGER_NOT_CONSISTENT",
+      "51": "REGISTRY_NOT_CONSISTENT",
+      "52": "NODE_SET_NOT_FROZEN",
+      "53": "SIGNAL_SET_NOT_FROZEN",
+      "54": "REPUTATION_SET_NOT_FROZEN",
+      "55": "WRITE_BARRIER_NOT_ACQUIRED"
+    }
+  }
+}

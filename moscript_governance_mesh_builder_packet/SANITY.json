@@ -1,0 +1,27 @@
+{
+  "genesis_snapshot_policy.ms": {
+    "bytes": 1313,
+    "sha256": "cd2eadf370199446b64f59af4b4cb5df50134b569683b8e02f4c312720ebaecc",
+    "glyph_only": true
+  },
+  "handshake_policy.ms": {
+    "bytes": 1865,
+    "sha256": "0a75c345a3c6fed27872d485cfe54381dff2d87800ef511fa990d77b91c33f7d",
+    "glyph_only": true
+  },
+  "node_health_policy.ms": {
+    "bytes": 957,
+    "sha256": "e992d643658b3de62028b99ae6a01f9809276d490d6dd94e5f10a7aeaa242779",
+    "glyph_only": true
+  },
+  "report_trade_policy.ms": {
+    "bytes": 1685,
+    "sha256": "b289d64383e8e71bcc349480f6d84d8e9470c519ee23b5c2805b9767d41dc079",
+    "glyph_only": true
+  },
+  "signal_policy.ms": {
+    "bytes": 1213,
+    "sha256": "74fd13e2d095d730f81247a462129843f3fbbe794d77fdffbbe51c033cb47950",
+    "glyph_only": true
+  }
+}

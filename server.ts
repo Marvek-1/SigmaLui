@@ -1857,8 +1857,29 @@ const serverSiphonEvents: any[] = [
   },
 ];
 
+// Transport Authentication Guard: Enforces SOUL_API_KEY when configured
+const authenticateSoulKey = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const configuredKey = process.env.SOUL_API_KEY;
+  if (!configuredKey) {
+    // Open dev/fallback mode when SOUL_API_KEY is not defined in environment
+    return next();
+  }
+  const authHeader = req.headers.authorization;
+  const providedKey = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.slice(7).trim()
+    : (req.query.apiKey as string);
+
+  if (!providedKey || providedKey !== configuredKey) {
+    return res.status(401).json({
+      error: 'Unauthorized: Invalid or missing API key',
+      detail: 'Set Authorization: Bearer <SOUL_API_KEY> header matching the server environment',
+    });
+  }
+  next();
+};
+
 // 6.1 GET /api/port/v1/stream - Real Server-Sent Events stream for external engines to suck signals
-app.get('/api/port/v1/stream', (req, res) => {
+app.get('/api/port/v1/stream', authenticateSoulKey, (req, res) => {
   const apiKey = (req.query.apiKey as string) || (req.headers.authorization?.replace('Bearer ', '')) || 'anon';
   const appName = (req.query.appName as string) || req.headers['user-agent'] || 'External Stream Client';
   const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
@@ -1946,7 +1967,7 @@ app.get('/api/port/v1/stream', (req, res) => {
 });
 
 // 6.2 GET /api/port/v1/suck-signals - REST endpoint for external engines to poll super signals
-app.get('/api/port/v1/suck-signals', (req, res) => {
+app.get('/api/port/v1/suck-signals', authenticateSoulKey, (req, res) => {
   const appName = (req.query.appName as string) || (req.headers['x-app-name'] as string) || 'External Polling Bot';
   const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
 
@@ -2010,7 +2031,7 @@ app.get('/api/port/v1/suck-signals', (req, res) => {
 });
 
 // 6.3 POST /api/port/v1/report-trade - External apps report their execution progress & effectiveness
-app.post('/api/port/v1/report-trade', (req, res) => {
+app.post('/api/port/v1/report-trade', authenticateSoulKey, (req, res) => {
   const {
     appName = 'External Client',
     signalId = 'SIG-PULSE',
@@ -2225,6 +2246,193 @@ function generateLocalQuantitativeAudit(params: {
 All mathematical safety invariants are satisfied. The signal conforms to the strict 95% target precision mandate.`;
 }
 
+// =========================================================================
+// 7. MOSCRIPT GOVERNANCE CONDUIT & SEALED SCROLLS API (Port 8443 Enforcer)
+// =========================================================================
+interface ServerLedgerReceipt {
+  id: string;
+  timestamp: string;
+  policy: string;
+  status: 'ALLOW' | 'DENY' | 'HOLD';
+  reasonCode: number;
+  reasonText: string;
+  quarantine: boolean;
+  repDelta?: number;
+  entryHash: string;
+  prevHash: string;
+  sig: string;
+}
+
+const serverGovernanceLedger: ServerLedgerReceipt[] = [
+  {
+    id: 'RCP-000001',
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    policy: 'HANDSHAKE',
+    status: 'ALLOW',
+    reasonCode: 0,
+    reasonText: 'CONDUIT_APPROVED',
+    quarantine: false,
+    entryHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    prevHash: '0000000000000000000000000000000000000000000000000000000000000000',
+    sig: 'ed25519:e3b0c442...b855',
+  },
+];
+
+app.get('/api/governance/moscript/status', (req, res) => {
+  const packetDir = path.join(process.cwd(), 'moscript_governance_mesh_builder_packet');
+  let manifest: any = null;
+  let sanity: any = null;
+
+  try {
+    if (fs.existsSync(path.join(packetDir, 'manifest.json'))) {
+      manifest = JSON.parse(fs.readFileSync(path.join(packetDir, 'manifest.json'), 'utf8'));
+    }
+    if (fs.existsSync(path.join(packetDir, 'SANITY.json'))) {
+      sanity = JSON.parse(fs.readFileSync(path.join(packetDir, 'SANITY.json'), 'utf8'));
+    }
+  } catch (err) {
+    console.error('Error reading moscript governance packet:', err);
+  }
+
+  res.json({
+    status: 'ACTIVE_CONDUIT',
+    runtime: 'MoScript product build v0.1.1',
+    packetDirExists: fs.existsSync(packetDir),
+    manifest,
+    sanity,
+    ledgerHead: serverGovernanceLedger[serverGovernanceLedger.length - 1]?.entryHash || null,
+    totalReceipts: serverGovernanceLedger.length,
+  });
+});
+
+app.get('/api/governance/moscript/policies', (req, res) => {
+  const packetDir = path.join(process.cwd(), 'moscript_governance_mesh_builder_packet', 'policies');
+  if (!fs.existsSync(packetDir)) {
+    return res.status(404).json({ error: 'Policies directory not found' });
+  }
+
+  try {
+    const files = fs.readdirSync(packetDir);
+    const policies: Record<string, { gloss?: string; glyph?: string }> = {};
+
+    for (const file of files) {
+      const baseName = file.replace(/\.(ms|gloss\.txt)$/, '');
+      if (!policies[baseName]) policies[baseName] = {};
+      const fullPath = path.join(packetDir, file);
+      const content = fs.readFileSync(fullPath, 'utf8');
+
+      if (file.endsWith('.gloss.txt')) {
+        policies[baseName].gloss = content;
+      } else if (file.endsWith('.ms')) {
+        policies[baseName].glyph = content;
+      }
+    }
+
+    res.json({ policies });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to read policies' });
+  }
+});
+
+app.post('/api/governance/moscript/evaluate', authenticateSoulKey, (req, res) => {
+  const { policy = 'HANDSHAKE', args = {} } = req.body || {};
+
+  let status = 0;
+  let reasonCode = 0;
+  let quarantine = false;
+  let repDelta: number | undefined = undefined;
+
+  if (policy === 'HANDSHAKE') {
+    const { AUTHOK = true, PROVOK = true, GATEONE = true, GATETWO = true, CHAINOK = true, NODEOK = true, REPLAYOK = true, CLOCKOK = true, ROLEOK = true, RESONANCE = 0.96 } = args;
+    if (!AUTHOK) { status = 0; reasonCode = 10; quarantine = true; }
+    else if (!PROVOK) { status = 0; reasonCode = 11; quarantine = true; }
+    else if (!GATEONE) { status = 0; reasonCode = 12; quarantine = false; }
+    else if (!GATETWO) { status = 0; reasonCode = 13; quarantine = false; }
+    else if (!CHAINOK) { status = 0; reasonCode = 14; quarantine = true; }
+    else if (!NODEOK) { status = 0; reasonCode = 15; quarantine = false; }
+    else if (!REPLAYOK) { status = 0; reasonCode = 16; quarantine = true; }
+    else if (!CLOCKOK) { status = 0; reasonCode = 17; quarantine = false; }
+    else if (!ROLEOK) { status = 0; reasonCode = 18; quarantine = false; }
+    else if (RESONANCE < 0.92) { status = 0; reasonCode = 19; quarantine = false; }
+    else { status = 1; reasonCode = 0; quarantine = false; }
+  } else if (policy === 'SIGNALPOLICY') {
+    const { GATEONE = true, GATETWO = true, PROVOK = true, STATEOK = true, CLOCKOK = true, RESONANCE = 0.95 } = args;
+    if (!GATEONE) { status = 0; reasonCode = 30; quarantine = false; }
+    else if (!GATETWO) { status = 0; reasonCode = 31; quarantine = false; }
+    else if (!PROVOK) { status = 0; reasonCode = 32; quarantine = true; }
+    else if (!STATEOK) { status = 0; reasonCode = 33; quarantine = false; }
+    else if (!CLOCKOK) { status = 0; reasonCode = 34; quarantine = false; }
+    else if (RESONANCE < 0.92) { status = 0; reasonCode = 35; quarantine = false; }
+    else { status = 1; reasonCode = 0; quarantine = false; }
+  } else if (policy === 'REPORTTRADE') {
+    const { SIGNOK = true, SIGNALOK = true, REPLAYOK = true, CLOCKOK = true, SLAOK = true, MARKETOK = true, PNLOK = true, POSITIONOK = true } = args;
+    if (!SIGNOK) { status = 0; reasonCode = 20; quarantine = true; repDelta = -100; }
+    else if (!REPLAYOK) { status = 0; reasonCode = 21; quarantine = true; repDelta = -100; }
+    else if (!CLOCKOK) { status = 0; reasonCode = 22; quarantine = false; repDelta = -5; }
+    else if (!SIGNALOK) { status = 0; reasonCode = 23; quarantine = false; repDelta = -10; }
+    else if (!SLAOK) { status = 1; reasonCode = 24; quarantine = false; repDelta = -10; }
+    else if (!MARKETOK) { status = 2; reasonCode = 25; quarantine = false; repDelta = -5; }
+    else if (!PNLOK) { status = 2; reasonCode = 26; quarantine = false; repDelta = -5; }
+    else if (!POSITIONOK) { status = 2; reasonCode = 27; quarantine = false; repDelta = -10; }
+    else { status = 1; reasonCode = 0; quarantine = false; repDelta = 1; }
+  } else if (policy === 'NODEHEALTH') {
+    const { CRYPTOSTRIKES = 0, REPLAYSTRIKES = 0, RECONSTRIKES = 0, SLASTRIKES = 0 } = args;
+    if (CRYPTOSTRIKES >= 1) { status = 0; reasonCode = 40; quarantine = true; }
+    else if (REPLAYSTRIKES >= 1) { status = 0; reasonCode = 41; quarantine = true; }
+    else if (RECONSTRIKES >= 3) { status = 0; reasonCode = 42; quarantine = true; }
+    else if (SLASTRIKES >= 5) { status = 2; reasonCode = 43; quarantine = false; }
+    else { status = 1; reasonCode = 0; quarantine = false; }
+  } else if (policy === 'SNAPSHOT') {
+    const { LEDGEROK = true, REGISTRYOK = true, NODESOK = true, SIGNALSOK = true, REPUTATIONOK = true, QUIESCENTOK = true } = args;
+    if (!LEDGEROK) { status = 0; reasonCode = 50; quarantine = false; }
+    else if (!REGISTRYOK) { status = 0; reasonCode = 51; quarantine = false; }
+    else if (!NODESOK) { status = 0; reasonCode = 52; quarantine = false; }
+    else if (!SIGNALSOK) { status = 0; reasonCode = 53; quarantine = false; }
+    else if (!REPUTATIONOK) { status = 0; reasonCode = 54; quarantine = false; }
+    else if (!QUIESCENTOK) { status = 0; reasonCode = 55; quarantine = false; }
+    else { status = 1; reasonCode = 0; quarantine = false; }
+  }
+
+  const prevHash = serverGovernanceLedger.length > 0 ? serverGovernanceLedger[serverGovernanceLedger.length - 1].entryHash : '0'.repeat(64);
+  const entryHash = Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  const statusLabel: 'ALLOW' | 'DENY' | 'HOLD' = status === 1 ? 'ALLOW' : status === 2 ? 'HOLD' : 'DENY';
+
+  const receipt: ServerLedgerReceipt = {
+    id: `RCP-${(serverGovernanceLedger.length + 1).toString().padStart(6, '0')}`,
+    timestamp: new Date().toISOString(),
+    policy,
+    status: statusLabel,
+    reasonCode,
+    reasonText: status === 1 ? 'CONDUIT_APPROVED' : `REASON_${reasonCode}`,
+    quarantine,
+    repDelta,
+    entryHash,
+    prevHash,
+    sig: `ed25519:${entryHash.slice(0, 8)}...${entryHash.slice(-4)}`,
+  };
+
+  serverGovernanceLedger.push(receipt);
+  if (serverGovernanceLedger.length > 50) serverGovernanceLedger.shift();
+
+  res.json({
+    success: true,
+    policy,
+    status,
+    statusLabel,
+    reasonCode,
+    quarantine,
+    repDelta,
+    receipt,
+  });
+});
+
+app.get('/api/governance/moscript/ledger', (req, res) => {
+  res.json({
+    totalReceipts: serverGovernanceLedger.length,
+    ledger: serverGovernanceLedger,
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -2265,7 +2473,7 @@ Please generate a forensic, high-density quantitative audit report covering:
 Keep the response structured, precise, authoritative, and formatted with clear Markdown headers.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
     });
 

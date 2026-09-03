@@ -406,6 +406,9 @@ export default function App() {
                 <SoulGiverAdapterHub
                   signals={signals}
                   marketState={marketState}
+                  assets={assets}
+                  liveMarketTelemetry={liveMarketTelemetry}
+                  serverTickCount={serverTickCount}
                   onOpenAiAudit={() => setIsAiModalOpen(true)}
                 />
               )}

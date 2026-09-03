@@ -8,6 +8,8 @@ import {
   MarketState,
   NodeMeshItem,
   NodeApiKey,
+  AssetDataFeed,
+  LiveMarketTelemetry,
 } from '../types';
 import {
   INITIAL_SOUL_CONFIG,
@@ -53,26 +55,35 @@ import {
   Target,
   FileCode,
   Lock,
+  Scroll,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ForesightAuditView } from './ForesightAuditView';
 import { HardeningGuardView } from './HardeningGuardView';
 import { AccessLogView } from './AccessLogView';
+import { SignalTrajectoryChart } from './SignalTrajectoryChart';
+import { MoScriptGovernanceMeshView } from './MoScriptGovernanceMeshView';
 
 interface SoulGiverAdapterHubProps {
   signals: SuperSignal[];
   marketState: MarketState;
+  assets?: AssetDataFeed[];
+  liveMarketTelemetry?: LiveMarketTelemetry;
+  serverTickCount?: number;
   onOpenAiAudit?: () => void;
 }
 
 export const SoulGiverAdapterHub: React.FC<SoulGiverAdapterHubProps> = ({
   signals,
   marketState,
+  assets = [],
+  liveMarketTelemetry,
+  serverTickCount = 0,
   onOpenAiAudit,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
-    'HARDENING_GUARD' | 'ACCESS_LOG' | 'FORESIGHT_AUDIT' | 'NODE_MESH' | 'HEADLESS_HUB' | 'ADAPTERS' | 'LEARNING'
-  >('HARDENING_GUARD');
+    'SIGNAL_TRAJECTORY' | 'MOSCRIPT_MESH' | 'HARDENING_GUARD' | 'ACCESS_LOG' | 'FORESIGHT_AUDIT' | 'NODE_MESH' | 'HEADLESS_HUB' | 'ADAPTERS' | 'LEARNING'
+  >('SIGNAL_TRAJECTORY');
   const [selectedLanguage, setSelectedLanguage] = useState<'PYTHON' | 'RUST' | 'NODE' | 'TRADINGVIEW' | 'CURL'>('PYTHON');
 
   // Node Mesh State (Connection Health Monitor)
@@ -341,6 +352,30 @@ export const SoulGiverAdapterHub: React.FC<SoulGiverAdapterHubProps> = ({
             {/* Quick Actions */}
             <div className="flex flex-wrap items-center gap-3 pt-2 font-mono text-xs">
               <button
+                onClick={() => setActiveSubTab('MOSCRIPT_MESH')}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer ${
+                  activeSubTab === 'MOSCRIPT_MESH'
+                    ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50 shadow-lg shadow-purple-500/10'
+                    : 'bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30'
+                }`}
+              >
+                <Scroll className="w-4 h-4 text-purple-400" />
+                <span>MoScript Governance Mesh</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSubTab('SIGNAL_TRAJECTORY')}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer ${
+                  activeSubTab === 'SIGNAL_TRAJECTORY'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-lg shadow-cyan-500/10'
+                    : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <span>Signal Trajectory (GM 1,1)</span>
+              </button>
+
+              <button
                 onClick={() => setShowKeyModal(true)}
                 className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-bold shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
               >
@@ -463,6 +498,36 @@ export const SoulGiverAdapterHub: React.FC<SoulGiverAdapterHubProps> = ({
       {/* 2. SUB-NAVIGATION TABS */}
       <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 overflow-x-auto font-mono text-xs">
         <button
+          onClick={() => setActiveSubTab('MOSCRIPT_MESH')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'MOSCRIPT_MESH'
+              ? 'bg-slate-800 text-purple-300 border border-purple-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <Scroll className="w-3.5 h-3.5 text-purple-400" />
+          <span>MoScript Governance Mesh</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-950 text-purple-300 border border-purple-800 animate-pulse">
+            v0.1.1 Conduit
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('SIGNAL_TRAJECTORY')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'SIGNAL_TRAJECTORY'
+              ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Signal Trajectory (GM(1,1) vs Volatility)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800 animate-pulse">
+            LIVE TELEMETRY
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('HARDENING_GUARD')}
           className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeSubTab === 'HARDENING_GUARD'
@@ -561,6 +626,27 @@ export const SoulGiverAdapterHub: React.FC<SoulGiverAdapterHubProps> = ({
           <span>Collective Learning Epochs</span>
         </button>
       </div>
+
+      {/* ========================================================================= */}
+      {/* SUB-VIEW -2: MOSCRIPT GOVERNANCE MESH BUILDER & SEALED SCROLLS CONDUIT    */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'MOSCRIPT_MESH' && (
+        <MoScriptGovernanceMeshView />
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUB-VIEW -1: REAL-TIME SIGNAL TRAJECTORY CHART (GM(1,1) VS VOLATILITY)     */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'SIGNAL_TRAJECTORY' && (
+        <SignalTrajectoryChart
+          assets={assets}
+          signals={signals}
+          marketState={marketState}
+          liveMarketTelemetry={liveMarketTelemetry}
+          serverTickCount={serverTickCount}
+          onOpenAiAudit={onOpenAiAudit}
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* SUB-VIEW 0: DYNAMIC SELF-PRESERVATION & HARDENING GUARD (CONSTANT 97% FLOOR) */}
