@@ -42,7 +42,6 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./engine:/app/engine
       - ./data/logs:/app/logs
 
   # ---------------------------------------------------------------------------
@@ -56,7 +55,7 @@ services:
     container_name: sigmalui-scaffs-gateway
     restart: unless-stopped
     network_mode: "host"
-    command: ["python3", "gateway/scaffs_bridge.py", "--mode", "paper", "--scaffs-path", "/home/idona/MoStar/scaffs"]
+    command: ["python3", "/app/gateway/scaffs_bridge.py", "--mode", "paper", "--scaffs-path", "/home/idona/MoStar/scaffs"]
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=127.0.0.1
@@ -68,7 +67,6 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./gateway:/app/gateway
       - /home/idona/MoStar/scaffs:/home/idona/MoStar/scaffs
 
   # ---------------------------------------------------------------------------
