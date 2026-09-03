@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/ai-audit",
+      "destination": "/api/ai-audit"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api"
     },

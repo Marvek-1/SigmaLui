@@ -97,12 +97,15 @@ async function syncLivePrices() {
   }
 }
 
-// Perform immediate live sync on boot, then periodic every 12 seconds
-syncLivePrices();
-setInterval(syncLivePrices, 12000);
+// Start background loops only in long-running container / standalone process (NOT in Vercel serverless)
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  // Perform immediate live sync on boot, then periodic every 12 seconds
+  syncLivePrices();
+  setInterval(syncLivePrices, 12000);
 
-// Start initial server loop
-resetServerTickLoop();
+  // Start initial server loop
+  resetServerTickLoop();
+}
 
 // 1. SSE Real-Time Stream Endpoint
 app.get('/api/stream', (req, res) => {
@@ -2447,7 +2450,11 @@ app.post('/api/ai-audit', async (req, res) => {
   const { signal, marketState, indeterminacy, apis, resolutionRho } = req.body;
 
   try {
-    const ai = createAIClient(req);
+    const hasKey = Boolean(process.env.GEMINI_API_KEY);
+    if (!hasKey) {
+      throw new Error('GEMINI_API_KEY not configured. Transitioning to local deterministic MCDM.');
+    }
+
     const prompt = `You are the Lead Quantitative Auditor and Chief Risk Officer for an Autonomous MCDM Signal Churner operating on Grey Model GM(1,1), Neutrosophic AHP (N-AHP), and TOPSIS with a strict 95% target success threshold.
 
 Here is the current execution telemetry:
@@ -2472,20 +2479,31 @@ Please generate a forensic, high-density quantitative audit report covering:
 
 Keep the response structured, precise, authoritative, and formatted with clear Markdown headers.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
+    const generatePromise = (async () => {
+      const ai = createAIClient(req);
+      const resp = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      return resp?.text;
+    })();
 
-    if (response && response.text) {
+    // 5.5s timeout budget to prevent Vercel 10s serverless 504 gateway timeout
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), 5500)
+    );
+
+    const generatedText = await Promise.race([generatePromise, timeoutPromise]);
+
+    if (generatedText) {
       return res.json({
-        auditReport: response.text,
-        source: 'gemini-3.7-flash',
+        auditReport: generatedText,
+        source: 'gemini-2.5-flash',
         timestamp: new Date().toISOString(),
       });
     }
 
-    throw new Error('Empty response received from Gemini');
+    throw new Error('Gemini upstream latency exceeded 5500ms serverless budget');
   } catch (error: any) {
     console.warn('Gemini API call warning/fallback triggered:', error?.message || error);
 
@@ -2503,6 +2521,8 @@ Keep the response structured, precise, authoritative, and formatted with clear M
       source: 'deterministic-quantitative-engine',
       fallbackNotice: error?.message?.includes('blocked')
         ? 'Generated via Built-in MCDM Mathematical Engine (External API Referrer Restricted)'
+        : error?.message?.includes('budget')
+        ? 'Generated via Built-in MCDM Mathematical Engine (Serverless Timeout Safeguard)'
         : undefined,
       timestamp: new Date().toISOString(),
     });
