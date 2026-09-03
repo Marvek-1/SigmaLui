@@ -14,6 +14,7 @@ import {
   ApiSource,
   AssetDataFeed,
   GraVerificationRecord,
+  LiveMarketTelemetry,
 } from './types';
 import { Header } from './components/Header';
 import { MinimalistPulseView } from './components/MinimalistPulseView';
@@ -174,6 +175,8 @@ export default function App() {
   const [graRecords, setGraRecords] = useState<GraVerificationRecord[]>([
     ...pipelineEngine.getGraRecords(),
   ]);
+  const [liveMarketTelemetry, setLiveMarketTelemetry] = useState<LiveMarketTelemetry | undefined>(undefined);
+  const [isSyncingMarket, setIsSyncingMarket] = useState<boolean>(false);
 
   // AI Auditor Modal
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -198,6 +201,7 @@ export default function App() {
       if (syncState.silentLogs) setSilentLogs(syncState.silentLogs);
       if (syncState.graRecords) setGraRecords(syncState.graRecords);
       if (syncState.marketState) setMarketState(syncState.marketState);
+      if (syncState.liveMarketTelemetry) setLiveMarketTelemetry(syncState.liveMarketTelemetry);
       if (typeof syncState.resolutionRho === 'number') setResolutionRho(syncState.resolutionRho);
       if (typeof syncState.isRunning === 'boolean') setIsRunning(syncState.isRunning);
       if (typeof syncState.simulationSpeed === 'number') setSimulationSpeed(syncState.simulationSpeed);
@@ -219,6 +223,16 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  // Force Live Market Re-sync
+  const handleSyncLiveMarket = async () => {
+    setIsSyncingMarket(true);
+    try {
+      await realtimeSync.syncLiveMarket();
+    } finally {
+      setIsSyncingMarket(false);
+    }
+  };
 
   // Handle Toggle Running
   const handleToggleRunning = async () => {
@@ -306,6 +320,9 @@ export default function App() {
           latencyMs={latencyMs}
           isBackendConnected={isBackendConnected}
           serverTickCount={serverTickCount}
+          liveMarketTelemetry={liveMarketTelemetry}
+          isSyncingMarket={isSyncingMarket}
+          onSyncLiveMarket={handleSyncLiveMarket}
         />
 
         {/* Main Workspace Frame with Collapsible Sidebar and Main Canvas */}

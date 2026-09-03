@@ -458,6 +458,92 @@ export interface ParameterOptimizationState {
   appliedAt: string;
 }
 
+export interface EntropyGuardStatus {
+  wassersteinDistance: number; // e.g. 0.038 (Hard limit: 0.150)
+  hardLimit: number; // 0.150
+  regimeStatus: 'NORMAL_HARMONIC' | 'PROTECTIVE_STASIS' | 'RE_NORMALIZING';
+  marketRegime: string; // e.g. "Low-Entropy Trending Bull"
+  lastRenormalizedAt: string;
+  noisyAssetsSuppressed: string[]; // e.g. ['DOGE', 'PEPE']
+  entropyTrend: 'FALLING' | 'STABLE' | 'RISING';
+}
+
+export interface TickBufferingStatus {
+  tickConfirmationCount: number; // 3 ticks
+  latencyTradeoffMs: number; // 48ms
+  spuriousTicksFilteredCount: number; // e.g. 142 ticks
+  isActive: boolean;
+  cleanFillRatioPct: number; // 100%
+}
+
+export interface ExecutionQualityStatus {
+  kaikoDepthMillisecondValid: boolean;
+  strategicSilencesTriggered: number;
+  subMillisecondValidationMs: number;
+  executionQualityScore: number; // 0-100, e.g. 98.8
+  lastAuditedAsset: string;
+}
+
+export interface GhostTradingStatus {
+  livePnlPct: number; // e.g. +14.79%
+  ghostPnlPct: number; // e.g. +14.82%
+  divergenceBps: number; // e.g. 3 bps (0.03%)
+  divergenceLimitBps: number; // 10 bps (0.10%)
+  isWarningActive: boolean;
+  ghostTradesMonitored: number;
+  soakProgressHours: number; // e.g. 4.2 / 48
+}
+
+export interface DeadManSwitchStatus {
+  isActive: boolean;
+  timeoutThresholdMs: number; // 2000ms
+  currentMaxHeartbeatLatencyMs: number; // e.g. 312ms
+  harvestersOnlineCount: number; // 20
+  totalHarvesters: number; // 20
+  circuitBreakerTripped: boolean;
+  binanceOrdersProtected: number;
+}
+
+export interface LiveMarketTelemetry {
+  isLiveConnected: boolean;
+  source: string;
+  lastSyncTimestamp: number;
+  lastError: string | null;
+  symbolsCount: number;
+  samplePrices: {
+    BTC: number;
+    ETH: number;
+    SOL: number;
+    BNB: number;
+    XRP: number;
+    TAO: number;
+  };
+}
+
+export interface AutoRecalibrationSnapshot {
+  cycleId: string;
+  cycleNumber: number;
+  timestamp: string;
+  nextScheduledCycle: string;
+  wassersteinDistance: number;
+  dominantMarketTruth: string;
+  activeTopsisWeights: {
+    bitqueryWhaleFlow: number;
+    kaikoOrderbookDepth: number;
+    stSvnwaHarmonics: number;
+    tcnsFreshness: number;
+  };
+  floorHitRatePct: number;
+  entropyGuard: EntropyGuardStatus;
+  tickBuffering: TickBufferingStatus;
+  executionQuality: ExecutionQualityStatus;
+  ghostTrading: GhostTradingStatus;
+  deadManSwitch: DeadManSwitchStatus;
+  status: 'CALIBRATED_OPTIMAL' | 'RE_NORMALIZING' | 'STASIS';
+  message: string;
+}
+
+
 export interface SoulConnectedNode {
   id: string;
   name: string;
@@ -594,4 +680,43 @@ export interface SiphonActivityEvent {
   detail: string;
   asset?: string;
   pnlDelta?: number;
+}
+
+export interface AccessLogEntry {
+  id: string;
+  timestamp: string;
+  nodeId: string;
+  nodeName: string;
+  eventType:
+    | 'HANDSHAKE_SUCCESS'
+    | 'AUTH_FAILURE'
+    | 'TOKEN_EXPIRED'
+    | 'RATE_LIMIT_EXCEEDED'
+    | 'IP_FINGERPRINT_MISMATCH'
+    | 'CHALLENGE_VERIFIED'
+    | 'SECURITY_BREACH';
+  status: 'AUTHORIZED' | 'EXPIRED' | 'REJECTED' | 'SECURITY_BREACH';
+  ipAddress: string; // Masked (e.g. 194.26.***.***)
+  ipRaw: string;
+  nodeTier: 'PREMIUM_95' | 'ULTRA_98' | 'MASTER' | 'UNAUTHENTICATED';
+  endpoint: string;
+  userAgent: string;
+  latencyMs: number;
+  failureReason?: string;
+  rateLimitQuota: string;
+  actionTaken: string;
+  isBanned?: boolean;
+}
+
+export interface AccessLogSummary {
+  totalHandshakes: number;
+  authorizedCount: number;
+  authFailureCount: number;
+  securityBreachCount: number;
+  activeBannedIpsCount: number;
+  avgHandshakeLatencyMs: number;
+  firewallStatus: 'ACTIVE_ENFORCEMENT' | 'MONITORING_ONLY';
+  rateLimitEnforcement: boolean;
+  ipFingerprinting: boolean;
+  challengeResponse: boolean;
 }

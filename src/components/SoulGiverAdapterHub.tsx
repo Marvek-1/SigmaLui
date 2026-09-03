@@ -56,6 +56,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ForesightAuditView } from './ForesightAuditView';
+import { HardeningGuardView } from './HardeningGuardView';
+import { AccessLogView } from './AccessLogView';
 
 interface SoulGiverAdapterHubProps {
   signals: SuperSignal[];
@@ -69,8 +71,8 @@ export const SoulGiverAdapterHub: React.FC<SoulGiverAdapterHubProps> = ({
   onOpenAiAudit,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
-    'FORESIGHT_AUDIT' | 'NODE_MESH' | 'HEADLESS_HUB' | 'ADAPTERS' | 'LEARNING'
-  >('FORESIGHT_AUDIT');
+    'HARDENING_GUARD' | 'ACCESS_LOG' | 'FORESIGHT_AUDIT' | 'NODE_MESH' | 'HEADLESS_HUB' | 'ADAPTERS' | 'LEARNING'
+  >('HARDENING_GUARD');
   const [selectedLanguage, setSelectedLanguage] = useState<'PYTHON' | 'RUST' | 'NODE' | 'TRADINGVIEW' | 'CURL'>('PYTHON');
 
   // Node Mesh State (Connection Health Monitor)
@@ -461,6 +463,36 @@ export const SoulGiverAdapterHub: React.FC<SoulGiverAdapterHubProps> = ({
       {/* 2. SUB-NAVIGATION TABS */}
       <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 overflow-x-auto font-mono text-xs">
         <button
+          onClick={() => setActiveSubTab('HARDENING_GUARD')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'HARDENING_GUARD'
+              ? 'bg-slate-800 text-emerald-300 border border-emerald-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Dynamic Self-Preservation (Hardening Guard)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">
+            97% Floor
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('ACCESS_LOG')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'ACCESS_LOG'
+              ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <ShieldAlert className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Access Log (Security Posture)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800">
+            Firewall
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('FORESIGHT_AUDIT')}
           className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeSubTab === 'FORESIGHT_AUDIT'
@@ -531,7 +563,21 @@ export const SoulGiverAdapterHub: React.FC<SoulGiverAdapterHubProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* SUB-VIEW 0: THE "PERFECT FORESIGHT" BENCHMARK & STRATEGY AUDIT            */}
+      {/* SUB-VIEW 0: DYNAMIC SELF-PRESERVATION & HARDENING GUARD (CONSTANT 97% FLOOR) */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'HARDENING_GUARD' && (
+        <HardeningGuardView />
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUB-VIEW 0B: ACCESS LOG & HARDENED MULTI-TENANT SECURITY AUDIT             */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'ACCESS_LOG' && (
+        <AccessLogView />
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUB-VIEW 0C: THE "PERFECT FORESIGHT" BENCHMARK & STRATEGY AUDIT           */}
       {/* ========================================================================= */}
       {activeSubTab === 'FORESIGHT_AUDIT' && (
         <ForesightAuditView onOpenAiAudit={onOpenAiAudit} />

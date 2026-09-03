@@ -585,6 +585,60 @@ export class AutonomousSignalPipelineEngine {
     return this.emittedSignals;
   }
 
+  public updateLiveMarketPrices(
+    liveMap: Record<
+      string,
+      {
+        markPrice: number;
+        indexPrice?: number;
+        basisBps?: number;
+        priceChange24h?: number;
+        volume24hUsd?: number;
+        fundingRate?: number;
+      }
+    >
+  ): number {
+    let updatedCount = 0;
+    for (const asset of this.assets) {
+      const match =
+        liveMap[asset.symbol.toUpperCase()] ||
+        liveMap[asset.pair.toUpperCase()] ||
+        liveMap[`${asset.symbol.toUpperCase()}USDT`] ||
+        liveMap[`${asset.symbol.toUpperCase()}USDT.P`];
+
+      if (match && match.markPrice > 0) {
+        asset.markPrice = Number(match.markPrice.toFixed(match.markPrice < 1 ? 6 : 2));
+        if (match.indexPrice && match.indexPrice > 0) {
+          asset.indexPrice = Number(match.indexPrice.toFixed(match.markPrice < 1 ? 6 : 2));
+        } else {
+          asset.indexPrice = asset.markPrice;
+        }
+
+        if (typeof match.basisBps === 'number') {
+          asset.basisBps = match.basisBps;
+        } else {
+          asset.basisBps = Number((((asset.markPrice - asset.indexPrice) / asset.indexPrice) * 10000).toFixed(2));
+        }
+
+        if (typeof match.priceChange24h === 'number') {
+          asset.priceChange24h = match.priceChange24h;
+        }
+        if (typeof match.volume24hUsd === 'number') {
+          asset.volume24hUsd = match.volume24hUsd;
+        }
+        if (typeof match.fundingRate === 'number') {
+          asset.fundingRate = match.fundingRate;
+        }
+
+        if (asset.priceHistory && asset.priceHistory.length > 0) {
+          asset.priceHistory[asset.priceHistory.length - 1] = asset.markPrice;
+        }
+        updatedCount++;
+      }
+    }
+    return updatedCount;
+  }
+
   public getSilentLogs(): SilentDiscardLog[] {
     return this.silentLogs;
   }
@@ -726,11 +780,11 @@ export class AutonomousSignalPipelineEngine {
     const assetIdx = this.stats.totalProcessedTicks % activePool.length;
     const asset = activePool[assetIdx];
 
-    // Jitter futures derivatives data slightly for realism
-    const priceDrift = (Math.random() - 0.46) * (asset.markPrice * 0.003);
+    // Jitter futures derivatives data slightly around live price (micro-fluctuations)
+    const priceDrift = (Math.random() - 0.5) * (asset.markPrice * 0.0004);
     const newPrice = Number((asset.markPrice + priceDrift).toFixed(asset.markPrice < 1 ? 4 : 2));
     asset.markPrice = newPrice;
-    asset.indexPrice = Number((newPrice * 0.9997).toFixed(asset.markPrice < 1 ? 4 : 2));
+    asset.indexPrice = Number((newPrice * 0.9999).toFixed(asset.markPrice < 1 ? 4 : 2));
     asset.basisBps = Number((((asset.markPrice - asset.indexPrice) / asset.indexPrice) * 10000).toFixed(2));
     asset.priceHistory.shift();
     asset.priceHistory.push(newPrice);
@@ -1124,10 +1178,10 @@ export class AutonomousSignalPipelineEngine {
         timestamp: '14:22:10',
         action: 'STRONG_BUY',
         timeframe: 'FRACTAL_CONFLUENT (5m+1h+4h)',
-        entryPrice: 93400.0,
-        target1: 95600.0,
-        target2: 98200.0,
-        stopLoss: 92100.0,
+        entryPrice: 77950.0,
+        target1: 79800.0,
+        target2: 81500.0,
+        stopLoss: 76800.0,
         riskRewardRatio: 2.15,
         topsisScore: 0.9782,
         indeterminacy: 0.064,
@@ -1135,8 +1189,8 @@ export class AutonomousSignalPipelineEngine {
         liquidityClearancePct: 2.4,
         fractalScore: 0.981,
         status: 'TARGET_2_HIT',
-        pnlPct: 5.14,
-        explanation: 'Triple-Gate passed on BTCUSDT.P with high-confluence GM(1,1) +0.038 momentum, basis spread 0.58 bps, and $18.45B open interest.',
+        pnlPct: 4.55,
+        explanation: 'Triple-Gate passed on BTCUSDT.P with high-confluence GM(1,1) +0.038 momentum, basis spread -3.5 bps, and $18.45B open interest.',
         diagnostics: {
           apisUsed: 20,
           bullishApis: 18,
@@ -1150,16 +1204,16 @@ export class AutonomousSignalPipelineEngine {
         asset: 'SOL',
         futuresPair: 'SOLUSDT.P',
         sector: 'Mega Cap',
-        fundingRate: 0.00014,
+        fundingRate: 0.00007,
         openInterestUsd: 4200000000,
         maxLeverage: 50,
         timestamp: '13:58:04',
         action: 'STRONG_BUY',
         timeframe: 'FRACTAL_CONFLUENT (5m+1h+4h)',
-        entryPrice: 204.5,
-        target1: 214.0,
-        target2: 225.0,
-        stopLoss: 199.5,
+        entryPrice: 99.4,
+        target1: 102.5,
+        target2: 106.0,
+        stopLoss: 97.5,
         riskRewardRatio: 2.42,
         topsisScore: 0.9654,
         indeterminacy: 0.092,
@@ -1167,7 +1221,7 @@ export class AutonomousSignalPipelineEngine {
         liquidityClearancePct: 1.8,
         fractalScore: 0.968,
         status: 'TARGET_1_HIT',
-        pnlPct: 4.65,
+        pnlPct: 3.12,
         explanation: 'SOLUSDT.P WhaleAlert net exchange outflow coupled with LunarCrush sentiment expansion and 4H fractal confluence.',
         diagnostics: {
           apisUsed: 20,
@@ -1182,16 +1236,16 @@ export class AutonomousSignalPipelineEngine {
         asset: 'TAO',
         futuresPair: 'TAOUSDT.P',
         sector: 'AI & Compute',
-        fundingRate: 0.00019,
+        fundingRate: -0.000037,
         openInterestUsd: 410000000,
         maxLeverage: 50,
         timestamp: '13:12:40',
         action: 'STRONG_BUY',
         timeframe: 'FRACTAL_CONFLUENT (5m+1h+4h)',
-        entryPrice: 540.0,
-        target1: 565.0,
-        target2: 590.0,
-        stopLoss: 525.0,
+        entryPrice: 215.0,
+        target1: 224.0,
+        target2: 232.0,
+        stopLoss: 210.0,
         riskRewardRatio: 2.33,
         topsisScore: 0.9715,
         indeterminacy: 0.075,
@@ -1199,7 +1253,7 @@ export class AutonomousSignalPipelineEngine {
         liquidityClearancePct: 2.1,
         fractalScore: 0.974,
         status: 'TARGET_2_HIT',
-        pnlPct: 8.2,
+        pnlPct: 7.9,
         explanation: 'AI Compute breakout on TAOUSDT.P with +21.4% OI expansion, Bitquery smart money accumulation, and zero ask wall resistance.',
         diagnostics: {
           apisUsed: 20,
@@ -1214,16 +1268,16 @@ export class AutonomousSignalPipelineEngine {
         asset: 'ETH',
         futuresPair: 'ETHUSDT.P',
         sector: 'Mega Cap',
-        fundingRate: 0.000095,
+        fundingRate: 0.000064,
         openInterestUsd: 9800000000,
         maxLeverage: 100,
         timestamp: '12:30:15',
         action: 'STRONG_BUY',
         timeframe: 'FRACTAL_CONFLUENT (5m+1h+4h)',
-        entryPrice: 3520.0,
-        target1: 3640.0,
-        target2: 3780.0,
-        stopLoss: 3450.0,
+        entryPrice: 2380.0,
+        target1: 2445.0,
+        target2: 2520.0,
+        stopLoss: 2340.0,
         riskRewardRatio: 2.28,
         topsisScore: 0.9588,
         indeterminacy: 0.112,
@@ -1231,7 +1285,7 @@ export class AutonomousSignalPipelineEngine {
         liquidityClearancePct: 1.6,
         fractalScore: 0.962,
         status: 'TARGET_1_HIT',
-        pnlPct: 3.41,
+        pnlPct: 2.73,
         explanation: 'Glassnode SOPR accumulation crossover on ETHUSDT.P with clean orderbook clearance and GM(1,1) RSI lookahead.',
         diagnostics: {
           apisUsed: 20,

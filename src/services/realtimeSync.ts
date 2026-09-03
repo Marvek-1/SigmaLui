@@ -6,6 +6,7 @@ import {
   SilentDiscardLog,
   GraVerificationRecord,
   MarketState,
+  LiveMarketTelemetry,
 } from '../types';
 
 export interface SyncState {
@@ -24,6 +25,7 @@ export interface SyncState {
   latencyMs: number;
   isBackendConnected: boolean;
   lastSyncTime: Date;
+  liveMarketTelemetry?: LiveMarketTelemetry;
 }
 
 export type SyncListener = (state: SyncState, newSignal?: SuperSignal) => void;
@@ -90,6 +92,26 @@ class RealtimeSyncManager {
         }
       });
 
+      this.eventSource.addEventListener('LIVE_PRICES_SYNCED', (e: MessageEvent) => {
+        this.isConnected = true;
+        try {
+          const data = JSON.parse(e.data);
+          this.notifyListeners(data);
+        } catch (err) {
+          console.warn('[SSE] Parse error in LIVE_PRICES_SYNCED:', err);
+        }
+      });
+
+      this.eventSource.addEventListener('MARKET_SYNC', (e: MessageEvent) => {
+        this.isConnected = true;
+        try {
+          const data = JSON.parse(e.data);
+          this.notifyListeners(data);
+        } catch (err) {
+          console.warn('[SSE] Parse error in MARKET_SYNC:', err);
+        }
+      });
+
       this.eventSource.onopen = () => {
         this.isConnected = true;
       };
@@ -152,6 +174,7 @@ class RealtimeSyncManager {
       latencyMs: this.latencyMs,
       isBackendConnected: this.isConnected,
       lastSyncTime: new Date(),
+      liveMarketTelemetry: data.liveMarketTelemetry || data.telemetry,
     };
 
     this.listeners.forEach((fn) => fn(syncState, newSignal));
@@ -174,6 +197,24 @@ class RealtimeSyncManager {
       }
     } catch (err) {
       console.error('[Sync] Control error:', err);
+    }
+    return false;
+  }
+
+  // Explicitly trigger live market re-sync with Binance Futures
+  public async syncLiveMarket(): Promise<boolean> {
+    try {
+      const res = await fetch('/api/market/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.notifyListeners(data);
+        return true;
+      }
+    } catch (err) {
+      console.error('[Sync] Market sync error:', err);
     }
     return false;
   }

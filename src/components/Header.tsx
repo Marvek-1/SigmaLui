@@ -15,8 +15,10 @@ import {
   Menu,
   PanelLeft,
   PanelLeftClose,
+  TrendingUp,
+  Globe,
 } from 'lucide-react';
-import { MarketState, PipelineStats } from '../types';
+import { MarketState, PipelineStats, LiveMarketTelemetry } from '../types';
 
 interface HeaderProps {
   stats: PipelineStats;
@@ -34,6 +36,9 @@ interface HeaderProps {
   latencyMs?: number;
   isBackendConnected?: boolean;
   serverTickCount?: number;
+  liveMarketTelemetry?: LiveMarketTelemetry;
+  isSyncingMarket?: boolean;
+  onSyncLiveMarket?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -52,8 +57,15 @@ export const Header: React.FC<HeaderProps> = ({
   latencyMs = 2,
   isBackendConnected = true,
   serverTickCount = 0,
+  liveMarketTelemetry,
+  isSyncingMarket = false,
+  onSyncLiveMarket,
 }) => {
   const isConfused = marketState === 'CONFUSED_CONFLICT';
+  const btcPrice = liveMarketTelemetry?.samplePrices?.BTC || 78480;
+  const ethPrice = liveMarketTelemetry?.samplePrices?.ETH || 2419;
+  const solPrice = liveMarketTelemetry?.samplePrices?.SOL || 101.4;
+  const taoPrice = liveMarketTelemetry?.samplePrices?.TAO || 221.5;
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
@@ -124,8 +136,44 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Key Metric & Controls */}
-          <div className="flex items-center flex-wrap gap-3">
+          {/* Live Binance Feed Strip & Controls */}
+          <div className="flex items-center flex-wrap gap-2.5">
+            {/* Live Market Price Ticker Pill */}
+            <div className="hidden xl:flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 font-mono text-xs shadow-inner">
+              <div className="flex items-center gap-1.5 text-[11px] text-cyan-400 font-semibold border-r border-slate-800 pr-2">
+                <Globe className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
+                <span>BINANCE L1</span>
+              </div>
+              <div className="flex items-center gap-3 text-[11px]">
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400">BTC</span>
+                  <span className="text-emerald-400 font-bold">${btcPrice.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400">ETH</span>
+                  <span className="text-emerald-400 font-bold">${ethPrice.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400">SOL</span>
+                  <span className="text-cyan-300 font-bold">${solPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400">TAO</span>
+                  <span className="text-purple-300 font-bold">${taoPrice.toFixed(1)}</span>
+                </div>
+              </div>
+              {onSyncLiveMarket && (
+                <button
+                  onClick={onSyncLiveMarket}
+                  disabled={isSyncingMarket}
+                  className="ml-1 p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-cyan-300 transition-colors disabled:opacity-50"
+                  title="Force Live Market Re-Sync"
+                >
+                  <RotateCw className={`w-3 h-3 ${isSyncingMarket ? 'animate-spin text-cyan-400' : ''}`} />
+                </button>
+              )}
+            </div>
+
             {/* Quick Win Rate Badge */}
             <div className="hidden sm:flex items-center space-x-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 font-mono text-xs">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
