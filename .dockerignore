@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+.env.local
+.env.production
+dist
+data/redis
+data/logs
+__pycache__
+*.pyc
+.DS_Store

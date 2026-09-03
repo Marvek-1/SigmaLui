@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Local High-Performance Redis Store
+  # In-memory signal bus and state cache (bound strictly to local host / internal network)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: sigmalui-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--bind", "127.0.0.1"]
+    network_mode: "host"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # 2. Live Quantitative Market Engine
+  # Connects directly to Binance Futures WebSocket (5 Alpha Pairs: BTC, ETH, SOL, BNB, TAO)
+  # Computes GM(1,1) + TOPSIS, verifies fail-closed governance, publishes to Redis.
+  # ---------------------------------------------------------------------------
+  market-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    container_name: sigmalui-market-engine
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=127.0.0.1
+      - REDIS_PORT=6379
+      - REDIS_CHANNEL=signals:live
+      - MIN_CONVICTION=0.90
+      - SOUL_HMAC_SECRET=${SOUL_HMAC_SECRET:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./engine:/app/engine
+      - ./data/logs:/app/logs
+
+  # ---------------------------------------------------------------------------
+  # 3. Local Scaffs Gateway Bridge (Safe Paper Default)
+  # Direct local IPC connector into Scaffs trading agent signal_queue.
+  # ---------------------------------------------------------------------------
+  scaffs-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    container_name: sigmalui-scaffs-gateway
+    restart: unless-stopped
+    network_mode: "host"
+    command: ["python3", "gateway/scaffs_bridge.py", "--mode", "paper", "--scaffs-path", "/home/idona/MoStar/scaffs"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=127.0.0.1
+      - REDIS_PORT=6379
+      - REDIS_CHANNEL=signals:live
+      - SCAFFS_PATH=/home/idona/MoStar/scaffs
+      - SOUL_HMAC_SECRET=${SOUL_HMAC_SECRET:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./gateway:/app/gateway
+      - /home/idona/MoStar/scaffs:/home/idona/MoStar/scaffs
+
+  # ---------------------------------------------------------------------------
+  # 4. Web Dashboard & Fullstack Sovereign Governance Node
+  # Serves the real-time React UI + Express APIs + MoScript evaluation on port 3000
+  # ---------------------------------------------------------------------------
+  web-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sigmalui-web-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SOUL_API_KEY=${SOUL_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - APP_URL=${APP_URL:-http://localhost:3000}
+    depends_on:
+      redis:
+        condition: service_healthy

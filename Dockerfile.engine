@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    websocket-client==1.8.0 \
+    redis==5.0.8 \
+    requests==2.32.3
+
+COPY engine/ /app/engine/
+COPY gateway/ /app/gateway/
+
+CMD ["python3", "engine/live_engine.py"]

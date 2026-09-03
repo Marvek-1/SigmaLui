@@ -1,0 +1,76 @@
+/**
+ * PM2 Ecosystem Configuration for Hostinger VPS
+ * 24/7/365 Persistent Process Management
+ */
+
+module.exports = {
+  apps: [
+    {
+      name: 'market-engine',
+      script: 'python3',
+      args: 'engine/live_engine.py',
+      cwd: __dirname,
+      interpreter: 'none',
+      restart_delay: 3000,
+      max_restarts: 50,
+      max_memory_restart: '500M',
+      autorestart: true,
+      env: {
+        PYTHONUNBUFFERED: '1',
+        REDIS_HOST: '127.0.0.1',
+        REDIS_PORT: '6379',
+        REDIS_CHANNEL: 'signals:live',
+        MIN_CONVICTION: '0.90',
+        SOUL_HMAC_SECRET: process.env.SOUL_HMAC_SECRET || '',
+      },
+      out_file: './data/logs/market-engine-out.log',
+      error_file: './data/logs/market-engine-err.log',
+      merge_logs: true,
+      time: true,
+    },
+    {
+      name: 'scaffs-gateway',
+      script: 'python3',
+      args: 'gateway/scaffs_bridge.py --mode paper',
+      cwd: __dirname,
+      interpreter: 'none',
+      restart_delay: 3000,
+      max_restarts: 50,
+      max_memory_restart: '300M',
+      autorestart: true,
+      env: {
+        PYTHONUNBUFFERED: '1',
+        REDIS_HOST: '127.0.0.1',
+        REDIS_PORT: '6379',
+        REDIS_CHANNEL: 'signals:live',
+        SCAFFS_PATH: process.env.SCAFFS_PATH || '/home/idona/MoStar/scaffs',
+      },
+      out_file: './data/logs/scaffs-gateway-out.log',
+      error_file: './data/logs/scaffs-gateway-err.log',
+      merge_logs: true,
+      time: true,
+    },
+    {
+      name: 'sigmalui-web',
+      script: 'node',
+      args: 'dist/server.cjs',
+      cwd: __dirname,
+      interpreter: 'none',
+      restart_delay: 3000,
+      max_restarts: 50,
+      max_memory_restart: '800M',
+      autorestart: true,
+      env: {
+        NODE_ENV: 'production',
+        PORT: '3000',
+        SOUL_API_KEY: process.env.SOUL_API_KEY || '',
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+        APP_URL: process.env.APP_URL || 'http://localhost:3000',
+      },
+      out_file: './data/logs/sigmalui-web-out.log',
+      error_file: './data/logs/sigmalui-web-err.log',
+      merge_logs: true,
+      time: true,
+    },
+  ],
+};
