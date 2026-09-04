@@ -85,6 +85,22 @@ async function syncLivePrices() {
     if (serverTickCount % 10 === 0 || serverTickCount === 0) {
       console.log(`[MarketFeed] Synced ${updatedCount} asset prices with live Binance Futures. BTC mark: $${liveData['BTC']?.markPrice}`);
     }
+
+    // Continuously revalidate signals across monitored assets on live Binance prices
+    const freshSignals = pipelineEngine.revalidateMarketSignals();
+    if (freshSignals.length > 0) {
+      console.log(
+        `[SignalChurner] Emitted ${freshSignals.length} fresh setup(s): ${freshSignals
+          .map((s) => `${s.id} (${s.asset} @ $${s.entryPrice})`)
+          .join(', ')}`
+      );
+      broadcastToClients('SIGNALS_UPDATED', {
+        type: 'SIGNALS_UPDATED',
+        signals: pipelineEngine.getEmittedSignals(),
+        serverTimestamp: Date.now(),
+      });
+    }
+
     // Broadcast live prices update periodically
     broadcastToClients('LIVE_PRICES_SYNCED', {
       type: 'LIVE_PRICES_SYNCED',
@@ -305,13 +321,17 @@ let soulRecentOutcomes: any[] = [
 
 // GET /api/soul/signals - Plug-in endpoint for external bots to fetch current "Soul" trade directives
 app.get('/api/soul/signals', (req, res) => {
-  const signals = pipelineEngine.getEmittedSignals();
+  let signals = pipelineEngine.getEmittedSignals();
+  if (signals.length === 0) {
+    pipelineEngine.revalidateMarketSignals();
+    signals = pipelineEngine.getEmittedSignals();
+  }
   const highConviction = signals.filter((s) => s.topsisScore >= 0.94);
 
   const soulDirectives = highConviction.map((s) => ({
     id: s.id,
     asset: s.asset,
-    futuresPair: s.futuresPair || `${s.asset}/USDT`,
+    futuresPair: s.futuresPair || `${s.asset}USDT.P`,
     action: s.action === 'STRONG_BUY' ? 'BUY' : 'SELL',
     side: s.action === 'STRONG_BUY' ? 'LONG' : 'SHORT',
     entryPrice: s.entryPrice,
