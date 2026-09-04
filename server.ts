@@ -2730,9 +2730,10 @@ Keep the response structured, precise, authoritative, and formatted with clear M
 });
 
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  const isProduction = (process.env.NODE_ENV || '').replace(/["']/g, '').trim() === 'production';
+  if (!isProduction) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
