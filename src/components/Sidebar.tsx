@@ -32,6 +32,7 @@ import {
   Share2,
   Split,
   Clock,
+  DollarSign,
 } from 'lucide-react';
 import { MarketState, PipelineStats } from '../types';
 
