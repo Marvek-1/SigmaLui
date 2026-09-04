@@ -14,7 +14,9 @@ RUN pip install --no-cache-dir \
 
 COPY engine/ /app/engine/
 COPY gateway/ /app/gateway/
+COPY engine/live_engine.py /app/live_engine.py
+COPY gateway/scaffs_bridge.py /app/scaffs_bridge.py
 
-RUN chmod +x /app/engine/*.py /app/gateway/*.py
+RUN chmod +x /app/*.py /app/engine/*.py /app/gateway/*.py
 
-CMD ["python3", "engine/live_engine.py"]
+CMD ["python3", "/app/live_engine.py"]

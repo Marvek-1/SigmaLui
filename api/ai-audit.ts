@@ -1,5 +1,17 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { GoogleGenAI } from '@google/genai';
+
+interface VercelRequest extends IncomingMessage {
+  query?: Record<string, string | string[]>;
+  cookies?: Record<string, string>;
+  body?: any;
+}
+
+interface VercelResponse extends ServerResponse {
+  status: (statusCode: number) => VercelResponse;
+  json: (body: any) => VercelResponse;
+  send: (body: any) => VercelResponse;
+}
 
 function generateDeterministicAudit(params: {
   asset?: string;
