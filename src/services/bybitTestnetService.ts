@@ -72,7 +72,7 @@ export class BybitTestnetService {
     this.config = {
       apiKey: cleanKey(process.env.BYBIT_TESTNET_API_KEY || process.env.BYBIT_API_KEY),
       apiSecret: cleanKey(process.env.BYBIT_TESTNET_API_SECRET || process.env.BYBIT_API_SECRET || process.env.BYBIT_API_SECRETS),
-      baseUrl: cleanKey(process.env.BYBIT_TESTNET_BASE_URL) || 'https://api-testnet.bybit.com',
+      baseUrl: cleanKey(process.env.BYBIT_TESTNET_BASE_URL) || 'https://api-demo-testnet.bybit.com',
       autoTradeEnabled: process.env.BYBIT_TESTNET_AUTO_TRADE === 'true',
       notionalUsd: parseFloat(process.env.BYBIT_TESTNET_NOTIONAL_USD || '100.0'),
       minTopsisScore: 0.9400,
@@ -115,7 +115,8 @@ export class BybitTestnetService {
   private async requestV5<T>(
     endpoint: string,
     method: 'GET' | 'POST' = 'GET',
-    paramsOrBody: Record<string, any> = {}
+    paramsOrBody: Record<string, any> = {},
+    hasRetriedAlternativeHost: boolean = false
   ): Promise<{ ok: boolean; data?: T; retCode?: number; retMsg?: string; error?: string }> {
     if (!this.config.apiKey || !this.config.apiSecret) {
       this.lastError = 'Bybit Testnet API key or secret missing';
@@ -168,6 +169,21 @@ export class BybitTestnetService {
         this.lastError = null;
         return { ok: true, data: json.result as T, retCode: json.retCode, retMsg: json.retMsg };
       } else {
+        // If API key is invalid (10003), attempt auto-failover between api-demo-testnet and api-testnet
+        if (json.retCode === 10003 && !hasRetriedAlternativeHost) {
+          const altHost = this.config.baseUrl.includes('api-demo-testnet')
+            ? 'https://api-testnet.bybit.com'
+            : 'https://api-demo-testnet.bybit.com';
+          const prevHost = this.config.baseUrl;
+          this.config.baseUrl = altHost;
+          const retryRes = await this.requestV5<T>(endpoint, method, paramsOrBody, true);
+          if (retryRes.ok) {
+            return retryRes;
+          }
+          // If alt host also failed, restore original
+          this.config.baseUrl = prevHost;
+        }
+
         this.lastError = `Bybit V5 Error (${json.retCode}): ${json.retMsg}`;
         if (json.retCode === 10003) {
           this.isConnected = false;
