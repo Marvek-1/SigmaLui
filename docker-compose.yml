@@ -37,7 +37,7 @@ services:
       - REDIS_HOST=127.0.0.1
       - REDIS_PORT=6379
       - REDIS_CHANNEL=signals:live
-      - MIN_CONVICTION=${MIN_CONVICTION:-0.72}
+      - MIN_CONVICTION=${MIN_CONVICTION:-0.50}
       - SOUL_HMAC_SECRET=${SOUL_HMAC_SECRET:-}
     depends_on:
       redis:

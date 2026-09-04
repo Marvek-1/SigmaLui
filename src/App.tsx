@@ -23,6 +23,7 @@ import { SoulGiverAdapterHub } from './components/SoulGiverAdapterHub';
 import { MarketRadarView } from './components/MarketRadarView';
 import { AuditorIntelligenceView } from './components/AuditorIntelligenceView';
 import { EngineDiagnosticsView } from './components/EngineDiagnosticsView';
+import { CrossVenueCortexView } from './components/CrossVenueCortexView';
 import {
   Sidebar,
   NavTab,
@@ -390,6 +391,14 @@ export default function App() {
                   latencyMs={latencyMs}
                   isBackendConnected={isBackendConnected}
                   serverTickCount={serverTickCount}
+                />
+              )}
+
+              {/* Layer 1.1: Cross-Venue Market Cortex (Binance + OKX + Bybit Quorum) */}
+              {activeTab === 'CORTEX' && (
+                <CrossVenueCortexView
+                  signals={signals}
+                  onOpenAiAudit={() => setIsAiModalOpen(true)}
                 />
               )}
 

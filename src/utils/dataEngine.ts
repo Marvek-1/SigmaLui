@@ -31,6 +31,7 @@ import {
   createCustomFuturesPair,
   calculateSqueezePressure,
 } from './futuresUniverse';
+import { augmentSignalWithCrossVenueEvidence } from '../services/crossVenueCortex';
 
 export const INITIAL_20_APIS: ApiSource[] = [
   // 1. Technicals (6)
@@ -1110,18 +1111,21 @@ export class AutonomousSignalPipelineEngine {
       },
     };
 
+    // Cross-Venue Market Cortex Triangulation (Binance + OKX + Bybit)
+    const triangulatedSignal = augmentSignalWithCrossVenueEvidence(superSignal);
+
     // Replace older signal for the same asset so the active pool represents current setups
     const existingIndex = this.emittedSignals.findIndex((s) => s.asset === asset.symbol);
     if (existingIndex >= 0) {
       this.emittedSignals.splice(existingIndex, 1);
     }
-    this.emittedSignals.unshift(superSignal);
+    this.emittedSignals.unshift(triangulatedSignal);
     if (this.emittedSignals.length > 30) this.emittedSignals.pop();
 
     this.stats.signalsEmitted++;
     this.stats.signalsShadowed++;
 
-    return { newSignal: superSignal, silentLog: null };
+    return { newSignal: triangulatedSignal, silentLog: null };
   }
 
   /**

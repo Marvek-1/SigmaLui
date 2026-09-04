@@ -140,9 +140,12 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center flex-wrap gap-2.5">
             {/* Live Market Price Ticker Pill */}
             <div className="hidden xl:flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 font-mono text-xs shadow-inner">
-              <div className="flex items-center gap-1.5 text-[11px] text-cyan-400 font-semibold border-r border-slate-800 pr-2">
-                <Globe className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
-                <span>BINANCE L1</span>
+              <div
+                className="flex items-center gap-1.5 text-[11px] text-indigo-400 font-semibold border-r border-slate-800 pr-2"
+                title="Triangulated across Binance Futures, OKX Perpetuals, and Bybit Linear"
+              >
+                <Globe className="w-3.5 h-3.5 animate-pulse text-indigo-400" />
+                <span>3-VENUE CORTEX</span>
               </div>
               <div className="flex items-center gap-3 text-[11px]">
                 <div className="flex items-center gap-1">
