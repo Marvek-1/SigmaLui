@@ -12,6 +12,7 @@ import {
   getCrossVenueFrame,
   getCrossVenueTelemetry,
   injectDisagreementScenario,
+  augmentSignalWithCrossVenueEvidence,
 } from './src/services/crossVenueCortex';
 
 dotenv.config();
@@ -386,42 +387,37 @@ app.get('/api/soul/signals', (req, res) => {
   const signals = pipelineEngine.getEmittedSignals();
   const highConviction = signals.filter((s) => s.topsisScore >= 0.94);
 
-  const soulDirectives = highConviction.map((s) => ({
-    id: s.id,
-    signalId: s.id,
-    asset: s.asset,
-    futuresPair: s.futuresPair || `${s.asset}/USDT`,
-    action: s.action === 'STRONG_BUY' ? 'BUY' : 'SELL',
-    side: s.action === 'STRONG_BUY' ? 'LONG' : 'SHORT',
-    entryPrice: s.entryPrice,
-    takeProfit1: s.target1,
-    takeProfit2: s.target2,
-    stopLoss: s.stopLoss,
-    riskRewardRatio: s.riskRewardRatio,
-    topsisScore: s.topsisScore,
-    confidencePct: Number((s.topsisScore * 100).toFixed(2)),
-    timeframe: s.timeframe,
-    timestamp: s.timestamp,
-    confluenceReason: s.explanation,
-    soulDirective: 'APPROVED_FOR_AUTONOMOUS_EXECUTION',
+  const soulDirectives = highConviction.map((s) => {
+    const augmented = augmentSignalWithCrossVenueEvidence(s);
+    return {
+      id: augmented.id,
+      signalId: augmented.id,
+      asset: augmented.asset,
+      futuresPair: augmented.futuresPair || `${augmented.asset}/USDT`,
+      action: augmented.action === 'STRONG_BUY' ? 'BUY' : 'SELL',
+      side: augmented.action === 'STRONG_BUY' ? 'LONG' : 'SHORT',
+      entryPrice: augmented.entryPrice,
+      takeProfit1: augmented.target1,
+      takeProfit2: augmented.target2,
+      stopLoss: augmented.stopLoss,
+      riskRewardRatio: augmented.riskRewardRatio,
+      topsisScore: augmented.topsisScore,
+      confidencePct: Number((augmented.topsisScore * 100).toFixed(2)),
+      timeframe: augmented.timeframe,
+      timestamp: augmented.timestamp,
+      confluenceReason: augmented.explanation,
+      soulDirective: 'APPROVED_FOR_AUTONOMOUS_EXECUTION',
 
-    // Cross-Venue Triangulation Provenance (Binance Futures + OKX Perpetuals + Bybit Linear)
-    venueConsensus: s.venueConsensus || {
-      binance: 'LONG',
-      okx: 'LONG',
-      bybit: 'LONG',
-      agreement: 1.0,
-      dispersion: 0.07,
-      consensusDirection: 'LONG',
-    },
-    marketEvidence: s.marketEvidence || {
-      binance: { oiDelta: 0.038, funding: 0.00006, markPrice: s.entryPrice, spreadBps: 0.8, orderbookImbalance: 0.21 },
-      okx: { oiDelta: 0.041, funding: 0.00005, markPrice: s.entryPrice * 0.9999, spreadBps: 1.4, orderbookImbalance: 0.19 },
-      bybit: { oiDelta: 0.035, funding: 0.000055, markPrice: s.entryPrice * 1.0001, spreadBps: 1.1, orderbookImbalance: 0.24 },
-    },
-    executionVenue: 'BINANCE', // Signal venue != execution venue
-    provenance: 'CROSS_VENUE_MARKET_CORTEX (BINANCE + OKX + BYBIT)',
-  }));
+      // Hardened Cross-Venue Provenance (Fail-Closed)
+      crossVenueTriangulated: augmented.crossVenueTriangulated ?? false,
+      venueConsensus: augmented.venueConsensus,
+      marketEvidence: augmented.marketEvidence,
+      executionVenue: augmented.executionVenue || 'BINANCE',
+      provenance: augmented.crossVenueTriangulated
+        ? 'CROSS_VENUE_MARKET_CORTEX (BINANCE + OKX + BYBIT)'
+        : 'BINANCE_ONLY (CROSS_VENUE_UNVERIFIED)',
+    };
+  });
 
   res.json({
     status: 'ACTIVE_SOUL_PULSE',

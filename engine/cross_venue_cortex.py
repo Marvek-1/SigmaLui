@@ -94,20 +94,12 @@ class CrossVenueMarketCortex:
     Quantifies disagreement as valuable market intelligence rather than noise.
     """
 
-    HISTORICAL_LEAD_LAG = {
-        "TAO": {"lead": "BYBIT", "lag": "BINANCE", "median_ms": 480, "accuracy": 0.92},
-        "BTC": {"lead": "BINANCE", "lag": "OKX", "median_ms": 110, "accuracy": 0.88},
-        "SOL": {"lead": "OKX", "lag": "BYBIT", "median_ms": 240, "accuracy": 0.85},
-        "ETH": {"lead": "BYBIT", "lag": "OKX", "median_ms": 160, "accuracy": 0.86},
-        "BNB": {"lead": "BINANCE", "lag": "BYBIT", "median_ms": 310, "accuracy": 0.94},
-    }
-
-    LEARNED_RELIABILITY = {
-        "BTC": {"BINANCE": 0.94, "OKX": 0.89, "BYBIT": 0.91},
-        "ETH": {"BINANCE": 0.93, "OKX": 0.90, "BYBIT": 0.91},
-        "SOL": {"BINANCE": 0.90, "OKX": 0.92, "BYBIT": 0.88},
-        "BNB": {"BINANCE": 0.96, "OKX": 0.84, "BYBIT": 0.87},
-        "TAO": {"BINANCE": 0.79, "OKX": 0.82, "BYBIT": 0.96}, # Bybit leads AI derivatives
+    VENUE_RELIABILITY_PRIORS = {
+        "BTC": {"BINANCE": 1/3, "OKX": 1/3, "BYBIT": 1/3},
+        "ETH": {"BINANCE": 1/3, "OKX": 1/3, "BYBIT": 1/3},
+        "SOL": {"BINANCE": 1/3, "OKX": 1/3, "BYBIT": 1/3},
+        "BNB": {"BINANCE": 1/3, "OKX": 1/3, "BYBIT": 1/3},
+        "TAO": {"BINANCE": 1/3, "OKX": 1/3, "BYBIT": 1/3},
     }
 
     def __init__(self):
@@ -121,77 +113,121 @@ class CrossVenueMarketCortex:
         bybit: VenueState
     ) -> CrossVenueFrame:
         """
-        Constructs synchronized CrossVenueFrame and computes all cross-venue metrics.
+        Constructs synchronized CrossVenueFrame and computes all cross-venue metrics
+        using hardened mathematical invariants.
         """
         venues = [binance, okx, bybit]
-        mark_prices = [v.mark_price for v in venues]
-        min_p, max_p = min(mark_prices), max(mark_prices)
-        avg_p = sum(mark_prices) / len(mark_prices)
-        price_basis = max_p - min_p
-        dispersion_bps = (price_basis / avg_p) * 10000.0 if avg_p > 0 else 0.0
-
-        # Directions
-        directions = [v.direction_bias for v in venues]
-        long_count = directions.count("LONG")
-        short_count = directions.count("SHORT")
-
-        if long_count == 3:
-            consensus_dir = "LONG"
-            agreement = 1.0
-        elif short_count == 3:
-            consensus_dir = "SHORT"
-            agreement = 1.0
-        elif long_count == 2:
-            consensus_dir = "LONG"
-            agreement = 0.67
-        elif short_count == 2:
-            consensus_dir = "SHORT"
-            agreement = 0.67
+        fresh_venues = [v for v in venues if not v.stale and v.mark_price > 0]
+        
+        mark_prices = [v.mark_price for v in fresh_venues]
+        if len(mark_prices) >= 2:
+            min_p, max_p = min(mark_prices), max(mark_prices)
+            avg_p = sum(mark_prices) / len(mark_prices)
+            price_basis = max_p - min_p
+            dispersion_bps = (price_basis / avg_p) * 10000.0 if avg_p > 0 else 0.0
         else:
-            consensus_dir = "DIVERGENT"
-            agreement = 0.33
+            price_basis = 0.0
+            dispersion_bps = 0.0
+            avg_p = mark_prices[0] if mark_prices else 0.0
 
-        # Funding dispersion
-        fundings = [v.funding_rate for v in venues]
-        avg_f = sum(fundings) / 3.0
-        f_disp = math.sqrt(sum((f - avg_f) ** 2 for f in fundings) / 3.0)
+        # Weights: neutral 1/3 priors
+        weights = self.VENUE_RELIABILITY_PRIORS.get(symbol, {"BINANCE": 1/3, "OKX": 1/3, "BYBIT": 1/3})
 
-        # OI delta dispersion
-        oi_deltas = [v.open_interest_delta for v in venues]
-        avg_oi = sum(oi_deltas) / 3.0
-        oi_disp = math.sqrt(sum((oi - avg_oi) ** 2 for oi in oi_deltas) / 3.0)
+        # Directional net agreement: A = |sum(w_i * d_i)| / sum(w_i)
+        dir_map = {"LONG": 1.0, "SHORT": -1.0, "NEUTRAL": 0.0}
+        weighted_signed_dir = 0.0
+        total_fresh_weight = 0.0
+        long_mass = 0.0
+        short_mass = 0.0
+        neutral_mass = 0.0
 
-        # Orderflow agreement
-        imbalances = [v.orderbook_imbalance for v in venues]
-        all_pos = all(imb > 0 for imb in imbalances)
-        all_neg = all(imb < 0 for imb in imbalances)
-        flow_agree = 0.95 if (all_pos or all_neg) else 0.52
+        for v in venues:
+            if v.stale:
+                continue
+            w = weights.get(v.venue, 1/3)
+            total_fresh_weight += w
+            d = dir_map.get(v.direction_bias, 0.0)
+            weighted_signed_dir += w * d
+            if v.direction_bias == "LONG":
+                long_mass += w
+            elif v.direction_bias == "SHORT":
+                short_mass += w
+            else:
+                neutral_mass += w
 
-        # Conviction multiplier
-        conviction_mult = 1.15 if agreement == 1.0 else (0.85 if agreement == 0.67 else 0.45)
+        if total_fresh_weight > 1e-9:
+            agreement = min(1.0, max(0.0, abs(weighted_signed_dir) / total_fresh_weight))
+            if long_mass > short_mass and long_mass > neutral_mass:
+                consensus_dir = "LONG"
+            elif short_mass > long_mass and short_mass > neutral_mass:
+                consensus_dir = "SHORT"
+            elif long_mass == 0 and short_mass == 0:
+                consensus_dir = "NEUTRAL"
+            else:
+                consensus_dir = "DIVERGENT"
+        else:
+            agreement = 0.0
+            consensus_dir = "NEUTRAL"
 
-        # Lead / Lag Dynamics
-        lead_info = self.HISTORICAL_LEAD_LAG.get(symbol, {"lead": "BINANCE", "median_ms": 120})
-        lead_venue = lead_info["lead"]
-        lead_lag_ms = lead_info.get("median_ms", 120)
-        lead_insight = f"{lead_venue} leads market discovery on {symbol} (median: ~{lead_lag_ms}ms)"
+        # Funding dispersion across fresh venues
+        fundings = [v.funding_rate for v in fresh_venues]
+        if fundings:
+            avg_f = sum(fundings) / len(fundings)
+            f_disp = math.sqrt(sum((f - avg_f) ** 2 for f in fundings) / len(fundings))
+        else:
+            f_disp = 0.0
+
+        # OI delta dispersion across fresh venues
+        oi_deltas = [v.open_interest_delta for v in fresh_venues]
+        if oi_deltas:
+            avg_oi = sum(oi_deltas) / len(oi_deltas)
+            oi_disp = math.sqrt(sum((oi - avg_oi) ** 2 for oi in oi_deltas) / len(oi_deltas))
+        else:
+            oi_disp = 0.0
+
+        # Top-of-book orderflow agreement: O = |sum(w_i * imb_i)| / sum(w_i * |imb_i|)
+        weighted_signed_imb = 0.0
+        weighted_abs_imb = 0.0
+        for v in venues:
+            if v.stale:
+                continue
+            w = weights.get(v.venue, 1/3)
+            imb = max(-1.0, min(1.0, v.orderbook_imbalance))
+            weighted_signed_imb += w * imb
+            weighted_abs_imb += w * abs(imb)
+
+        if weighted_abs_imb > 1e-9:
+            flow_agree = min(1.0, max(0.0, abs(weighted_signed_imb) / weighted_abs_imb))
+        else:
+            flow_agree = 0.0
+
+        # Hardened conviction multiplier: M = clamp(A * fresh_mass * P, 0, 1)
+        # Price coherence: exp(-dispersion_bps / 15.0)
+        price_coherence = math.exp(-dispersion_bps / 15.0)
+        fresh_mass = min(1.0, max(0.0, total_fresh_weight))
+        conviction_mult = min(1.0, max(0.0, agreement * fresh_mass * price_coherence))
+
+        # Lead / Lag: Not inferred from REST snapshots
+        lead_venue = "SYNCHRONIZED"
+        lead_lag_ms = 0
+        lead_insight = f"Lead/lag unavailable for {symbol}: snapshot data is insufficient for causal timing inference"
 
         # Disagreement As Information Diagnosis
-        if agreement == 1.0:
-            diag = "3/3 Unanimous cross-venue consensus. High conviction."
-            category = "UNANIMOUS_CONVERGENCE"
-        elif dispersion_bps > 15.0:
-            diag = f"High price dispersion ({dispersion_bps:.1f} bps). Transient cross-venue arbitrage or local liquidity vacuum."
-            category = "TRANSIENT_ARBITRAGE"
-        elif abs(bybit.orderbook_imbalance - binance.orderbook_imbalance) > 0.35:
-            diag = "Single-venue orderbook spoofing/skew detected. Neutralized by 3-venue quorum."
-            category = "LOCAL_ORDERBOOK_SPOOFING_FILTERED"
-        elif symbol == "TAO" and bybit.direction_bias != binance.direction_bias:
-            diag = "Bybit derivatives flow leading Binance spot/futures. Pre-convergence transition state."
-            category = "LEAD_LAG_ACCELERATION"
-        else:
-            diag = "Regional liquidity differential detected. Conviction safely dampened."
+        if len(fresh_venues) < 3:
+            diag = f"Insufficient fresh venues ({len(fresh_venues)}/3). Cross-venue evidence is degraded."
             category = "REGIONAL_FLOW_DIFFERENTIAL"
+        elif dispersion_bps > 15.0:
+            diag = f"Cross-venue mark-price dispersion elevated ({dispersion_bps:.1f} bps). Basis/liquidity divergence."
+            category = "TRANSIENT_ARBITRAGE"
+        elif flow_agree < 0.35:
+            diag = "Top-of-book imbalance disagrees materially across venues."
+            category = "REGIONAL_FLOW_DIFFERENTIAL"
+        elif consensus_dir == "DIVERGENT" or agreement < 0.5:
+            diag = "Reliability-weighted directional evidence is divergent. Conviction safely discounted."
+            category = "REGIONAL_FLOW_DIFFERENTIAL"
+        else:
+            diag = "Fresh venues are directionally coherent within current reliability-weighted snapshot."
+            category = "UNANIMOUS_CONVERGENCE"
 
         weights = self.LEARNED_RELIABILITY.get(symbol, {"BINANCE": 0.90, "OKX": 0.90, "BYBIT": 0.90})
 
@@ -224,9 +260,16 @@ class CrossVenueMarketCortex:
         """
         Embeds source evidence and venue consensus into the signal directive.
         Guarantees: Signal Venue != Execution Venue.
+        Fails closed: crossVenueTriangulated is strictly False unless 3 fresh venues exist.
         """
         frame = self.cached_frames.get(symbol)
         if not frame:
+            signal["crossVenueTriangulated"] = False
+            return signal
+
+        fresh_count = sum(1 for v in [frame.binance, frame.okx, frame.bybit] if not v.stale and v.mark_price > 0)
+        if fresh_count < 3:
+            signal["crossVenueTriangulated"] = False
             return signal
 
         signal["venueConsensus"] = {
