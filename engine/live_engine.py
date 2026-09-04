@@ -47,7 +47,7 @@ REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_CHANNEL = os.environ.get("REDIS_CHANNEL", "signals:live")
 SOUL_HMAC_SECRET = os.environ.get("SOUL_HMAC_SECRET", "")
-MIN_CONVICTION = float(os.environ.get("MIN_CONVICTION", "0.90"))
+MIN_CONVICTION = float(os.environ.get("MIN_CONVICTION", "0.72"))
 TARGET_ASSETS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "TAOUSDT"]
 
 # In-memory rolling price windows for GM(1,1) and indicator calculation
@@ -125,35 +125,50 @@ def calculate_gm11(raw_sequence: List[float]) -> Optional[Dict[str, float]]:
     current_price = raw_sequence[-1]
     expected_return_pct = ((next_price - current_price) / current_price) * 100.0
 
+    # 5. Measure model residual error (MAPE) across the window for precision gating
+    residuals = []
+    for k in range(1, n):
+        fitted_k = term * math.exp(-a * k) + (u / a)
+        fitted_prev = term * math.exp(-a * (k - 1)) + (u / a)
+        fitted_price = fitted_k - fitted_prev
+        actual_price = raw_sequence[k]
+        if actual_price > 0:
+            residuals.append(abs(fitted_price - actual_price) / actual_price)
+    mean_residual_pct = (sum(residuals) / len(residuals)) * 100.0 if residuals else 0.0
+
     return {
         "development_coef_a": round(a, 6),
         "grey_input_u": round(u, 4),
         "current_price": round(current_price, 4),
         "predicted_price": round(next_price, 4),
-        "expected_return_pct": round(expected_return_pct, 3),
+        "expected_return_pct": round(expected_return_pct, 4),
+        "mean_residual_pct": round(mean_residual_pct, 4),
         "trend": "BULLISH" if next_price > current_price else "BEARISH",
     }
 
 
 def calculate_topsis(
-    price_change_pct: float,
-    volume_surge: float,
-    volatility: float,
+    trend_coherence: float,
     grey_return_pct: float,
+    residual_error_pct: float,
+    volatility_pct: float,
 ) -> float:
     """
-    Calculates TOPSIS Closeness Coefficient (Ci) across multi-criteria vector:
-    [Momentum, Volume Surge, Low Volatility (Cost), Grey Expected Return]
-    Outputs a score in range [0.0, 1.0].
+    Calibrated TOPSIS Closeness Coefficient (Ci) across multi-criteria vector:
+    [Trend Coherence, Grey Expected Drift, Model Residual Precision, Volatility Stability]
+    Mapped to [0.0, 1.0].
     """
-    # Normalized criteria (0.0 to 1.0)
-    c1_mom = min(max((abs(price_change_pct) / 2.0), 0.0), 1.0)
-    c2_vol = min(max((volume_surge / 3.0), 0.0), 1.0)
-    c3_vola = 1.0 - min(max((volatility / 1.5), 0.0), 1.0)  # Lower is better
-    c4_grey = min(max((abs(grey_return_pct) / 1.5), 0.0), 1.0)
+    # 1. Trend coherence (fraction of ticks aligned with direction)
+    c1_trend = min(max(trend_coherence, 0.0), 1.0)
+    # 2. Grey return normalized to realistic tick scale (0.035% = strong intraday drift)
+    c2_grey = min(max(abs(grey_return_pct) / 0.035, 0.0), 1.0)
+    # 3. Model residual precision (lower residual error = higher precision)
+    c3_prec = min(max(1.0 - (residual_error_pct / 1.5), 0.0), 1.0)
+    # 4. Volatility stability (penalizes chaotic micro-spikes > 1.0%)
+    c4_vola = min(max(1.0 - (volatility_pct / 1.0), 0.0), 1.0)
 
-    weights = [0.30, 0.25, 0.15, 0.30]
-    values = [c1_mom, c2_vol, c3_vola, c4_grey]
+    weights = [0.35, 0.30, 0.20, 0.15]
+    values = [c1_trend, c2_grey, c3_prec, c4_vola]
 
     # Weighted normalized values
     v_weighted = [w * v for w, v in zip(weights, values)]
@@ -191,33 +206,50 @@ def generate_signal(symbol: str, ticks: List[float], last_tick: dict) -> Optiona
     current_price = gm_result["current_price"]
     pred_price = gm_result["predicted_price"]
     ret_pct = gm_result["expected_return_pct"]
+    mean_residual = gm_result.get("mean_residual_pct", 0.0)
     is_long = gm_result["trend"] == "BULLISH"
 
-    # Multi-criteria inputs
-    price_change_pct = float(last_tick.get("P", 0.0))  # 24h price change
-    volume = float(last_tick.get("q", 0.0))  # 24h volume
-    volatility = abs((ticks[-1] - ticks[0]) / ticks[0]) * 100.0
+    # Gating 1: Drop noisy fit where GM(1,1) error exceeds 2.5%
+    if mean_residual > 2.5:
+        return None
+
+    # Gating 2: Microstructure trend coherence across rolling tick window
+    n_ticks = len(ticks)
+    diffs = [ticks[i] - ticks[i - 1] for i in range(1, n_ticks)]
+    if is_long:
+        aligned_moves = sum(1 for d in diffs if d >= 0)
+    else:
+        aligned_moves = sum(1 for d in diffs if d <= 0)
+    trend_coherence = aligned_moves / len(diffs) if diffs else 0.5
+
+    # Gating 3: Penalize counter-trend knife-catching
+    net_window_return = ((ticks[-1] - ticks[0]) / ticks[0]) * 100.0
+    if (is_long and net_window_return < -0.01) or (not is_long and net_window_return > 0.01):
+        trend_coherence *= 0.55  # Severe penalty for counter-trend setups
+
+    # Gating 4: Window volatility
+    volatility = ((max(ticks) - min(ticks)) / ticks[0]) * 100.0
 
     topsis_score = calculate_topsis(
-        price_change_pct=price_change_pct,
-        volume_surge=1.4,
-        volatility=volatility,
+        trend_coherence=trend_coherence,
         grey_return_pct=ret_pct,
+        residual_error_pct=mean_residual,
+        volatility_pct=volatility,
     )
 
     if topsis_score < MIN_CONVICTION:
         return None
 
-    # Calculate rigorous Risk-Reward geometry
-    atr_estimate = current_price * 0.008  # 0.8% dynamic buffer
+    # Calculate rigorous Risk-Reward geometry (2.0 : 1 minimum ratio for high win-rate expectancy)
+    atr_estimate = max(current_price * 0.005, (max(ticks) - min(ticks)) * 1.5)  # Dynamic volatility buffer
     if is_long:
-        action = "STRONG_BUY" if topsis_score >= 0.94 else "BUY"
+        action = "STRONG_BUY" if topsis_score >= 0.85 else "BUY"
         entry_price = current_price
         target1 = round(entry_price + (atr_estimate * 2.0), 2)
         target2 = round(entry_price + (atr_estimate * 3.5), 2)
         stop_loss = round(entry_price - atr_estimate, 2)
     else:
-        action = "STRONG_SELL" if topsis_score >= 0.94 else "SELL"
+        action = "STRONG_SELL" if topsis_score >= 0.85 else "SELL"
         entry_price = current_price
         target1 = round(entry_price - (atr_estimate * 2.0), 2)
         target2 = round(entry_price - (atr_estimate * 3.5), 2)
