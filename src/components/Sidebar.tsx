@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { MarketState, PipelineStats } from '../types';
 
-export type NavTab = 'DASHBOARD' | 'CORTEX' | 'SIGNAL_PORT' | 'SOUL_ADAPTER' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
+export type NavTab = 'DASHBOARD' | 'CORTEX' | 'BYBIT_TESTNET' | 'SIGNAL_PORT' | 'SOUL_ADAPTER' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
 export type MarketSubTab = 'UNIVERSE' | 'ORDERBOOK_DEPTH';
 export type AuditorSubTab =
   | 'SOAK_TEST'
@@ -201,6 +201,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: 'Alpha Discovery',
           onClick: () => onSelectTab('CORTEX'),
           isActive: activeTab === 'CORTEX',
+        },
+      ],
+    },
+    {
+      id: 'BYBIT_TESTNET' as const,
+      label: 'Bybit Demo Terminal',
+      sublabel: 'V5 Linear Perpetuals Execution',
+      icon: Zap,
+      badge: 'V5 Demo',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-800',
+      items: [
+        {
+          id: 'BYBIT_EXEC',
+          label: 'Demo Terminal & Orders',
+          icon: DollarSign,
+          badge: '100k USDT',
+          onClick: () => onSelectTab('BYBIT_TESTNET'),
+          isActive: activeTab === 'BYBIT_TESTNET',
         },
       ],
     },

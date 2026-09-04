@@ -24,6 +24,7 @@ import { MarketRadarView } from './components/MarketRadarView';
 import { AuditorIntelligenceView } from './components/AuditorIntelligenceView';
 import { EngineDiagnosticsView } from './components/EngineDiagnosticsView';
 import { CrossVenueCortexView } from './components/CrossVenueCortexView';
+import { BybitTestnetTerminal } from './components/BybitTestnetTerminal';
 import {
   Sidebar,
   NavTab,
@@ -399,6 +400,13 @@ export default function App() {
                 <CrossVenueCortexView
                   signals={signals}
                   onOpenAiAudit={() => setIsAiModalOpen(true)}
+                />
+              )}
+
+              {/* Layer 1.15: Bybit V5 Unified Testnet Execution Terminal */}
+              {activeTab === 'BYBIT_TESTNET' && (
+                <BybitTestnetTerminal
+                  signals={signals}
                 />
               )}
 
