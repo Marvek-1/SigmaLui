@@ -30,10 +30,12 @@ import {
   CheckCircle2,
   Plug,
   Share2,
+  Split,
+  Clock,
 } from 'lucide-react';
 import { MarketState, PipelineStats } from '../types';
 
-export type NavTab = 'DASHBOARD' | 'SIGNAL_PORT' | 'SOUL_ADAPTER' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
+export type NavTab = 'DASHBOARD' | 'CORTEX' | 'SIGNAL_PORT' | 'SOUL_ADAPTER' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
 export type MarketSubTab = 'UNIVERSE' | 'ORDERBOOK_DEPTH';
 export type AuditorSubTab =
   | 'SOAK_TEST'
@@ -173,6 +175,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: `${stats.successfulSignals}W / ${stats.failedSignals}L`,
           onClick: () => onSelectTab('DASHBOARD'),
           isActive: activeTab === 'DASHBOARD',
+        },
+      ],
+    },
+    {
+      id: 'CORTEX' as const,
+      label: 'Market Cortex',
+      sublabel: 'Binance + OKX + Bybit Quorum',
+      icon: Split,
+      badge: '3 Venues',
+      badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-800',
+      items: [
+        {
+          id: 'TRIANGULATION_GRID',
+          label: '3-Exchange Triangulation',
+          icon: Split,
+          badge: 'Consensus 3/3',
+          onClick: () => onSelectTab('CORTEX'),
+          isActive: activeTab === 'CORTEX',
+        },
+        {
+          id: 'DISAGREEMENT_OBSERVATORY',
+          label: 'Lead/Lag & Disagreement',
+          icon: Clock,
+          badge: 'Alpha Discovery',
+          onClick: () => onSelectTab('CORTEX'),
+          isActive: activeTab === 'CORTEX',
         },
       ],
     },

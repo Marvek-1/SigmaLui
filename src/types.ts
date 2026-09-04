@@ -204,6 +204,11 @@ export interface SuperSignal {
   status: 'ACTIVE' | 'TARGET_1_HIT' | 'TARGET_2_HIT' | 'STOPPED_OUT' | 'SHADOW_VERIFIED';
   pnlPct: number;
   explanation: string;
+  // Cross-Venue Triangulation & Provenance Evidence
+  venueConsensus?: VenueConsensus;
+  marketEvidence?: MarketEvidence;
+  executionVenue?: 'BINANCE';
+  crossVenueTriangulated?: boolean;
   artifactsUsed?: {
     hausdorffUsed: boolean;
     wassersteinRegime: HMMRegime;
@@ -720,3 +725,123 @@ export interface AccessLogSummary {
   ipFingerprinting: boolean;
   challengeResponse: boolean;
 }
+
+// =========================================================
+// CROSS-VENUE MARKET CORTEX TYPES (Binance + OKX + Bybit)
+// =========================================================
+
+export type VenueId = 'BINANCE' | 'OKX' | 'BYBIT';
+
+export interface VenueState {
+  venue: VenueId;
+  venueName: string;
+  symbol: string;
+  contractType: string; // 'USDT-M Perpetual' | 'Linear Swap'
+  isExecutionVenue: boolean; // True for Binance, False for OKX / Bybit (Phase 1)
+  markPrice: number;
+  indexPrice: number;
+  lastPrice: number;
+  bestBid: number;
+  bestAsk: number;
+  spreadBps: number;
+  orderbookImbalance: number; // -1.0 (heavy asks) to +1.0 (heavy bids)
+  openInterest: number;
+  openInterestDelta: number; // relative change e.g. +0.038 (+3.8%)
+  fundingRate: number;
+  fundingDirection: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+  aggressiveBuyVolume: number;
+  aggressiveSellVolume: number;
+  volume24hUsd: number;
+  basisBps: number;
+  exchangeTimestamp: number;
+  receiveTimestamp: number;
+  latencyMs: number;
+  stale: boolean;
+  directionBias: 'LONG' | 'SHORT' | 'NEUTRAL';
+}
+
+export interface VenueConsensus {
+  binance: 'LONG' | 'SHORT' | 'NEUTRAL';
+  okx: 'LONG' | 'SHORT' | 'NEUTRAL';
+  bybit: 'LONG' | 'SHORT' | 'NEUTRAL';
+  agreement: number; // 0.0 to 1.0 (1.0 = 3/3 unanimous)
+  dispersion: number; // e.g. 0.07
+  consensusDirection: 'LONG' | 'SHORT' | 'NEUTRAL' | 'DIVERGENT';
+}
+
+export interface MarketEvidenceVenue {
+  oiDelta: number;
+  funding: number;
+  markPrice: number;
+  spreadBps: number;
+  orderbookImbalance: number;
+}
+
+export interface MarketEvidence {
+  binance: MarketEvidenceVenue;
+  okx: MarketEvidenceVenue;
+  bybit: MarketEvidenceVenue;
+}
+
+export interface CrossVenueFrame {
+  symbol: string; // 'BTC', 'ETH', 'SOL', 'BNB', 'TAO'
+  binance: VenueState;
+  okx: VenueState;
+  bybit: VenueState;
+  observedAt: number;
+
+  // Cross-Venue Triangulation & Disagreement Metrics
+  agreement: number; // 0.0 to 1.0
+  dispersionBps: number; // max basis across venues
+  priceBasisUsd: number;
+  fundingDispersion: number;
+  oiDispersion: number;
+  orderflowAgreement: number;
+
+  // Synthesis
+  consensusDirection: 'LONG' | 'SHORT' | 'NEUTRAL' | 'DIVERGENT';
+  convictionMultiplier: number; // dampened if divergent, boosted if 3/3 unanimous
+
+  // Lead / Lag Dynamics
+  leadVenue: 'BINANCE' | 'OKX' | 'BYBIT' | 'SYNCHRONIZED';
+  leadLagMs: number;
+  leadLagInsight: string;
+
+  // Learned Reliability Vector
+  reliabilityWeights: {
+    binance: number;
+    okx: number;
+    bybit: number;
+  };
+
+  // Disagreement As Information Diagnosis
+  disagreementDiagnosis: string;
+  disagreementCategory:
+    | 'UNANIMOUS_CONVERGENCE'
+    | 'LOCAL_LIQUIDATION_SPIKE'
+    | 'REGIONAL_FLOW_DIFFERENTIAL'
+    | 'TRANSIENT_ARBITRAGE'
+    | 'LEAD_LAG_ACCELERATION'
+    | 'LOCAL_ORDERBOOK_SPOOFING_FILTERED';
+}
+
+export interface CrossVenueCortexTelemetry {
+  isLiveSynced: boolean;
+  lastSyncTimestamp: number;
+  activeFramesCount: number;
+  overallConsensusRatio: number; // e.g. 0.88
+  averageDispersionBps: number;
+  leadLagObservatory: {
+    symbol: string;
+    leadExchange: VenueId;
+    lagExchange: VenueId;
+    medianLeadLagMs: number;
+    historicalPredictiveAccuracy: number;
+  }[];
+  venueStatus: {
+    binance: { status: 'ONLINE'; mode: 'MARKET_DATA_AND_EXECUTION'; latencyMs: number };
+    okx: { status: 'ONLINE'; mode: 'PUBLIC_MARKET_DATA_ONLY'; latencyMs: number };
+    bybit: { status: 'ONLINE'; mode: 'PUBLIC_MARKET_DATA_ONLY'; latencyMs: number };
+  };
+}
+
