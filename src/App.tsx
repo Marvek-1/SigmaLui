@@ -48,7 +48,7 @@ export default function App() {
     try {
       if (typeof window !== 'undefined') {
         const saved = localStorage.getItem('ai_studio_active_tab') as NavTab;
-        if (saved && ['DASHBOARD', 'SIGNAL_PORT', 'SOUL_ADAPTER', 'MARKET', 'AUDITOR', 'SETTINGS'].includes(saved)) {
+        if (saved && ['DASHBOARD', 'SIGNAL_PORT', 'SOUL_ADAPTER', 'MARKET', 'AUDITOR', 'SETTINGS', 'CORTEX', 'BYBIT_TESTNET'].includes(saved)) {
           return saved;
         }
       }
