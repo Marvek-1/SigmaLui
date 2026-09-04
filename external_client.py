@@ -19,12 +19,11 @@ Hardened Security Architecture:
      explicitly set to --mode live.
 
 Usage:
-  # 1. Provide API key via environment variable:
-  export SOUL_API_KEY="your-actual-api-key"
-  python3 external_client.py --url https://sigmalui.vercel.app
+  # 1. Direct connection to VPS (default credentials):
+  python3 external_client.py
 
-  # 2. Or pass via CLI flag:
-  python3 external_client.py --url https://sigmalui.vercel.app --key "your-key" --name "Scaffs_Bot"
+  # 2. Or pass via CLI flags:
+  python3 external_client.py --url https://trading.mostarindustries.com --key "suck_live_alpha_98a72f1c84" --name "Scaffs_Bot"
 
   # 3. REST Polling mode:
   python3 external_client.py --poll --interval 2.5
@@ -406,12 +405,12 @@ def main():
     )
     parser.add_argument(
         "--url",
-        default=os.environ.get("SOUL_API_BASE_URL") or os.environ.get("SOUL_API_URL", "https://sigmalui.vercel.app"),
+        default=os.environ.get("SOUL_API_BASE_URL") or os.environ.get("SOUL_API_URL", "https://trading.mostarindustries.com"),
         help="Target Hub URL (can also be set via SOUL_API_BASE_URL or SOUL_API_URL)",
     )
     parser.add_argument(
         "--key",
-        default=os.environ.get("SOUL_API_KEY", ""),
+        default=os.environ.get("SOUL_API_KEY", "suck_live_alpha_98a72f1c84"),
         help="Access API Key. Can also be set via SOUL_API_KEY environment variable.",
     )
     parser.add_argument(

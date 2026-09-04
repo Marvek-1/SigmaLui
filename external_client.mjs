@@ -12,16 +12,15 @@
  *  4. Safe Paper Default: Simulates order placement unless --mode live.
  *
  * Usage:
- *   export SOUL_API_KEY="your-secret-key"
- *   node external_client.mjs --url https://sigmalui.vercel.app --name "NodeQuantBot"
+ *   node external_client.mjs --url https://trading.mostarindustries.com --name "NodeQuantBot"
  */
 
 import { parseArgs } from 'node:util';
 
 const options = {
-  url: { type: 'string', default: process.env.SOUL_API_BASE_URL || process.env.SOUL_API_URL || 'https://sigmalui.vercel.app' },
+  url: { type: 'string', default: process.env.SOUL_API_BASE_URL || process.env.SOUL_API_URL || 'https://trading.mostarindustries.com' },
   name: { type: 'string', default: process.env.APP_NAME || 'Node_Quant_Worker' },
-  key: { type: 'string', default: process.env.SOUL_API_KEY || '' },
+  key: { type: 'string', default: process.env.SOUL_API_KEY || 'suck_live_alpha_98a72f1c84' },
   mode: { type: 'string', default: 'paper' },
   minConviction: { type: 'string', default: '0.90' },
   maxStaleness: { type: 'string', default: '60' },

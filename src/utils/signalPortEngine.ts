@@ -264,20 +264,22 @@ export const INITIAL_SIPHON_EVENTS: SiphonActivityEvent[] = [
 ];
 
 // Generates copyable command-line or code snippets to suck signals from Port 8443
-export function generateSiphonSnippets(config: SignalPortConfig) {
+export function generateSiphonSnippets(config: SignalPortConfig, customBaseUrl?: string) {
+  const baseUrl = customBaseUrl || (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://trading.mostarindustries.com');
+
   const curlCmd = `# 🌊 SUCK ALL SUPER SIGNALS DIRECTLY VIA HTTP STREAM (PORT ${config.portNumber})
-curl -N -X GET "https://ai.studio/build${config.streamEndpoint}?apiKey=${config.activeApiKey}" \\
+curl -N -X GET "${baseUrl}${config.streamEndpoint}?apiKey=${config.activeApiKey}" \\
   -H "Accept: text/event-stream"`;
 
   const pythonSuckCode = `# 🐍 Python Real-Time Signal Siphon Client (Port ${config.portNumber})
 import json
 import requests
 
-SIPHON_STREAM_URL = "https://ai.studio/build${config.streamEndpoint}"
+SIPHON_STREAM_URL = "${baseUrl}${config.streamEndpoint}"
 API_KEY = "${config.activeApiKey}"
 
 def suck_super_signals():
-    print(f"Connecting to Super Signal Siphon Port ${config.portNumber}...")
+    print("Connecting to Super Signal Siphon...")
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Accept": "text/event-stream"
@@ -290,16 +292,16 @@ def suck_super_signals():
                 decoded = line.decode('utf-8')
                 if decoded.startswith("data:"):
                     signal = json.loads(decoded[5:].strip())
-                    print(f"⚡ Sucked Super Signal: {signal['asset']} {signal['action']} @ \${signal['entryPrice']}")
+                    print(f"⚡ Sucked Super Signal: {signal.get('asset')} {signal.get('action')} @ \${signal.get('entryPrice')}")
                     
                     # 1. Execute immediately on your exchange / engine
                     # execute_trade(signal)
                     
                     # 2. Report progress back to monitor trade effectiveness
-                    report_trade_progress(signal['id'], signal['asset'], pnl_pct=3.8, status="TARGET_HIT")
+                    report_trade_progress(signal.get('id', 'SIG-LIVE'), signal.get('asset', 'BTC'), pnl_pct=3.8, status="TARGET_HIT")
 
 def report_trade_progress(signal_id, asset, pnl_pct, status):
-    requests.post("https://ai.studio/build${config.reportTradeEndpoint}", json={
+    requests.post("${baseUrl}${config.reportTradeEndpoint}", json={
         "apiKey": API_KEY,
         "appName": "My Custom Python Quant",
         "signalId": signal_id,
@@ -316,8 +318,8 @@ if __name__ == "__main__":
 import EventSource from 'eventsource';
 import axios from 'axios';
 
-const PORT_URL = 'https://ai.studio/build${config.streamEndpoint}?apiKey=${config.activeApiKey}';
-const REPORT_URL = 'https://ai.studio/build${config.reportTradeEndpoint}';
+const PORT_URL = '${baseUrl}${config.streamEndpoint}?apiKey=${config.activeApiKey}';
+const REPORT_URL = '${baseUrl}${config.reportTradeEndpoint}';
 
 console.log('Connecting to Port ${config.portNumber} Signal Siphon...');
 const sse = new EventSource(PORT_URL);
@@ -351,7 +353,7 @@ use futures_util::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let url = "https://ai.studio/build${config.streamEndpoint}?apiKey=${config.activeApiKey}";
+    let url = "${baseUrl}${config.streamEndpoint}?apiKey=${config.activeApiKey}";
     println!("🦀 Rust HFT Engine connected to Signal Port ${config.portNumber}");
     
     let response = reqwest::get(url).await?;

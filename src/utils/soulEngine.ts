@@ -642,7 +642,9 @@ export function formatSoulWebhookPayload(signal: SuperSignal, config: SoulAdapte
 }
 
 // Code generators for different programming languages & tools
-export function generateSoulPythonSnippet(config: SoulAdapterConfig): string {
+export function generateSoulPythonSnippet(config: SoulAdapterConfig, customBaseUrl?: string): string {
+  const baseUrl = customBaseUrl || (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://trading.mostarindustries.com');
+  const endpoint = `${baseUrl}/api/soul`;
   return `# 🌟 Alpha Signals: Soul Giver Python Client
 # pip install requests websockets
 
@@ -650,7 +652,7 @@ import json
 import requests
 import time
 
-SOUL_ENDPOINT = "https://ai.studio/build/api/soul"
+SOUL_ENDPOINT = "${endpoint}"
 SOUL_SECRET = "${config.webhookSecret}"
 
 def receive_soul_pulse():
@@ -686,11 +688,13 @@ if __name__ == "__main__":
 `;
 }
 
-export function generateSoulNodeSnippet(config: SoulAdapterConfig): string {
+export function generateSoulNodeSnippet(config: SoulAdapterConfig, customBaseUrl?: string): string {
+  const baseUrl = customBaseUrl || (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://trading.mostarindustries.com');
+  const endpoint = `${baseUrl}/api/soul`;
   return `// 🌟 Alpha Signals: Soul Giver Node.js / TypeScript Adapter
 import axios from 'axios';
 
-const SOUL_API = 'https://ai.studio/build/api/soul';
+const SOUL_API = '${endpoint}';
 const SOUL_SECRET = '${config.webhookSecret}';
 
 async function plugAndTrade() {

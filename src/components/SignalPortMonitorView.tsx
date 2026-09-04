@@ -90,7 +90,11 @@ export const SignalPortMonitorView: React.FC<SignalPortMonitorViewProps> = ({
   const handleSimulateSuck = async () => {
     setIsSimulatingSuck(true);
     try {
-      const res = await fetch(`/api/port/v1/suck-signals?appName=Local+Siphon+Tester`);
+      const res = await fetch(`/api/port/v1/suck-signals?appName=Local+Siphon+Tester&apiKey=${portConfig.activeApiKey}`, {
+        headers: {
+          'Authorization': `Bearer ${portConfig.activeApiKey}`,
+        },
+      });
       const data = await res.json();
       setSuckedPayloadPreview(JSON.stringify(data, null, 2));
 
@@ -185,8 +189,12 @@ export const SignalPortMonitorView: React.FC<SignalPortMonitorViewProps> = ({
     try {
       await fetch('/api/port/v1/report-trade', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${portConfig.activeApiKey}`,
+        },
         body: JSON.stringify({
+          apiKey: portConfig.activeApiKey,
           appName: app.name,
           signalId: 'SIG-TEST-' + Math.floor(Math.random() * 1000),
           asset: 'TAO',
