@@ -33,6 +33,7 @@ RUN npm install --omit=dev --ignore-scripts
 
 # Copy built distribution artifacts from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/engine ./engine
 
 # Port 3000 is exposed for Web UI and REST/SSE Governance APIs
 EXPOSE 3000

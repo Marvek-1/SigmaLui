@@ -180,6 +180,86 @@ export interface QuantitativeArtifactsSnapshot {
   gamma: AgentGammaArtifacts;
 }
 
+export type SignalAction = 'STRONG_BUY' | 'BUY' | 'STRONG_SELL' | 'SELL' | 'NO_TRADE';
+export type OrderSide = 'BUY' | 'SELL' | 'NO_TRADE';
+export type PositionSide = 'LONG' | 'SHORT' | 'FLAT';
+export type SignalTier = 'APEX_SOVEREIGN' | 'HIGH_CONFLUENCE' | 'ALPHA_PRIME' | 'NO_TRADE';
+
+export interface CrossVenueEvidenceSummary {
+  quorum: '3/3' | '2/3' | '1/3' | '0/3';
+  dispersionPct: number;
+  basisPct: number;
+  fundingDivergence: number;
+  orderbookImbalance: {
+    binance: number;
+    okx: number;
+    bybit: number;
+  };
+}
+
+export interface NeutrosophicTrace {
+  T: number;
+  I: number;
+  F: number;
+  accuracy: number;
+  score: number;
+}
+
+export interface GreyTrace {
+  a: number;
+  b: number;
+  mrpe: number;
+  forecast: number[];
+}
+
+export interface TopsisTrace {
+  dPlus: number;
+  dMinus: number;
+  closeness: number;
+  idealVersion: string;
+}
+
+export interface FractalTrace {
+  '5m': { ci: number; direction: 'LONG' | 'SHORT' | 'NEUTRAL'; greyError: number };
+  '1h': { ci: number; direction: 'LONG' | 'SHORT' | 'NEUTRAL'; greyError: number };
+  '4h': { ci: number; direction: 'LONG' | 'SHORT' | 'NEUTRAL'; greyError: number };
+}
+
+export interface HardGatesTrace {
+  dataFreshness: boolean;
+  venueIntegrity: boolean;
+  basis: boolean;
+  fractal: boolean;
+  wassersteinRegime: boolean;
+  expectedShortfall: boolean;
+  kaikoVacuum: boolean;
+}
+
+export interface DecisionTrace {
+  decisionId: string;
+  modelVersion: string;
+  selectedAction: 'LONG' | 'SHORT' | 'NO_TRADE';
+  tier: SignalTier;
+  decisionScore: number;
+  idealCloseness: number;
+  crossVenue: CrossVenueEvidenceSummary;
+  neutrosophic: NeutrosophicTrace;
+  grey: GreyTrace;
+  topsis: TopsisTrace;
+  fractal: FractalTrace;
+  hardGates: HardGatesTrace;
+  executionEligible: boolean;
+}
+
+export interface RiskApproval {
+  approved: boolean;
+  conviction?: 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
+  directive?: 'EXECUTE' | 'REFUSE' | 'HOLD';
+  allocationPct?: number;
+  leverage?: number;
+  gateReasons?: string[];
+}
+
 export interface SuperSignal {
   id: string;
   asset: string;
@@ -189,7 +269,8 @@ export interface SuperSignal {
   openInterestUsd?: number;
   maxLeverage?: number;
   timestamp: string;
-  action: 'STRONG_BUY' | 'STRONG_SELL';
+  action: SignalAction;
+  riskApproval?: RiskApproval;
   timeframe: 'FRACTAL_CONFLUENT (5m+1h+4h)';
   entryPrice: number;
   target1: number;
@@ -197,6 +278,10 @@ export interface SuperSignal {
   stopLoss: number;
   riskRewardRatio: number;
   topsisScore: number; // e.g. 0.964
+  tier?: SignalTier;
+  decisionScore?: number;
+  idealCloseness?: number;
+  decisionTrace?: DecisionTrace;
   indeterminacy: number; // e.g. 0.08
   greyResidualError: number; // e.g. 0.014
   liquidityClearancePct: number;

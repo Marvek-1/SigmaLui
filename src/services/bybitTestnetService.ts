@@ -772,8 +772,24 @@ export class BybitTestnetService {
    * to eliminate cross-venue basis discrepancies (e.g. Binance vs Bybit Testnet basis).
    */
   public async executeSignal(signal: SuperSignal): Promise<{ ok: boolean; order?: BybitOrderResult; reason?: string }> {
-    const symbol = `${signal.asset.toUpperCase()}USDT`;
-    const side: 'Buy' | 'Sell' = signal.action === 'STRONG_BUY' || signal.action === 'BUY' ? 'Buy' : 'Sell';
+    const symbol = signal.futuresPair.replace('/', '').toUpperCase();
+    let side: 'Buy' | 'Sell';
+    switch (signal.action) {
+      case 'STRONG_BUY':
+      case 'BUY':
+        side = 'Buy';
+        break;
+      case 'STRONG_SELL':
+      case 'SELL':
+        side = 'Sell';
+        break;
+      case 'NO_TRADE':
+        return { ok: false, reason: `Refused execution: Signal is NO_TRADE for ${symbol}` };
+      default: {
+        const _exhaustive: never = signal.action;
+        return { ok: false, reason: `Refused execution: Unhandled signal action ${_exhaustive}` };
+      }
+    }
 
     // 0. Bybit Fractal Technical Confirmation Gate (5m KDJ + 1h RSI/MACD + 4h RSI/MACD)
     try {

@@ -11,7 +11,7 @@ export const INITIAL_PORT_CONFIG: SignalPortConfig = {
   streamEndpoint: '/api/port/v1/stream',
   suckSignalsEndpoint: '/api/port/v1/suck-signals',
   reportTradeEndpoint: '/api/port/v1/report-trade',
-  activeApiKey: 'suck_live_alpha_98a72f1c84',
+  activeApiKey: typeof process !== 'undefined' && process.env?.SOUL_API_KEY ? process.env.SOUL_API_KEY : '',
   isPortOpen: true,
   minConvictionFloor: 0.94,
   totalDataTransferredKb: 84920,

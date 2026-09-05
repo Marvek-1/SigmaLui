@@ -8,7 +8,37 @@ import {
   ForesightSignalAuditItem,
   ForesightAuditReport,
   ParameterOptimizationState,
+  SignalAction,
+  OrderSide,
+  PositionSide,
+  RiskApproval,
 } from '../types';
+
+/**
+ * Strict exhaustive direction mapper with compile-time exhaustiveness assertion.
+ * Ensures plain BUY is dispatched as LONG/BUY and never inverted to SHORT/SELL.
+ * Explicitly distinguishes actionable orders from NO_TRADE.
+ */
+export function mapSignalToTradeDirection(action: SignalAction): {
+  action: OrderSide;
+  side: PositionSide;
+  isExecutable: boolean;
+} {
+  switch (action) {
+    case 'STRONG_BUY':
+    case 'BUY':
+      return { action: 'BUY', side: 'LONG', isExecutable: true };
+    case 'STRONG_SELL':
+    case 'SELL':
+      return { action: 'SELL', side: 'SHORT', isExecutable: true };
+    case 'NO_TRADE':
+      return { action: 'NO_TRADE', side: 'FLAT', isExecutable: false };
+    default: {
+      const _exhaustive: never = action;
+      throw new Error(`Unhandled signal action: ${_exhaustive}`);
+    }
+  }
+}
 
 export const INITIAL_FORESIGHT_SIGNALS: ForesightSignalAuditItem[] = [
   {
@@ -404,7 +434,9 @@ export const INITIAL_NODE_MESH: NodeMeshItem[] = [
 ];
 
 export const INITIAL_SOUL_CONFIG: SoulAdapterConfig = {
-  webhookSecret: 'soul_sec_994a8f219b6e82c1',
+  webhookSecret: typeof process !== 'undefined' && process.env?.SOUL_WEBHOOK_SECRET
+    ? process.env.SOUL_WEBHOOK_SECRET
+    : '',
   webhookEndpoint: '/api/soul/webhook',
   autoDispatchSignals: true,
   minConfidenceThreshold: 0.95,
@@ -597,28 +629,88 @@ export const INITIAL_SOUL_STATS: SoulMeshStats = {
 };
 
 // Generates the JSON webhook payload that is dispatched to plugged-in bots
-export function formatSoulWebhookPayload(signal: SuperSignal, config: SoulAdapterConfig) {
+export function formatSoulWebhookPayload(
+  signal: SuperSignal,
+  config: SoulAdapterConfig,
+  riskApproval?: RiskApproval
+) {
+  const dir = mapSignalToTradeDirection(signal.action);
+  const approval = riskApproval ?? signal.riskApproval;
+
+  if (!dir.isExecutable || signal.action === 'NO_TRADE') {
+    return {
+      source: 'ALPHA_SIGNALS_SOUL_GIVER',
+      version: '2.4.0',
+      timestamp: new Date().toISOString(),
+      event: 'TRADE_SIGNAL_PULSE',
+      soul: {
+        directive: 'HOLD' as const,
+        conviction: 'NONE' as const,
+        confidenceScore: signal.topsisScore,
+        confidencePct: Number((signal.topsisScore * 100).toFixed(2)),
+        asset: signal.asset,
+        futuresPair: signal.futuresPair || `${signal.asset}/USDT`,
+        action: dir.action,
+        side: dir.side,
+        entryPrice: signal.entryPrice,
+        takeProfit1: signal.target1,
+        takeProfit2: signal.target2,
+        stopLoss: signal.stopLoss,
+        riskRewardRatio: signal.riskRewardRatio,
+        recommendedAllocationPct: 0,
+        recommendedLeverage: 1,
+        timeframe: signal.timeframe,
+        marketConfluence: 'NO_TRADE: Neutral consensus, directional conflict, or policy gate refusal',
+      },
+      verification: {
+        greyResidualError: signal.greyResidualError,
+        indeterminacyIndex: signal.indeterminacy,
+        topsisRank: signal.topsisScore,
+        confluentExchangesCount: 20,
+      },
+      callback: {
+        shareOutcomeEndpoint: '/api/soul/share-outcome',
+        shareOutcomeSchema: {
+          signalId: signal.id,
+          exchangeOrderId: 'string (REQUIRED: Exchange order id)',
+          fillTimestamp: 'string (REQUIRED: ISO 8601 execution timestamp)',
+          fillPrice: 'number',
+          exitPrice: 'number',
+          pnlPct: 'number',
+          slippageBps: 'number',
+        },
+      },
+    };
+  }
+
+  // Upstream risk governance pass-through: adapter never invents unilateral approval
+  const isApproved = approval ? Boolean(approval.approved) : (signal.topsisScore >= config.minConfidenceThreshold);
+  const directive = isApproved ? (approval?.directive ?? 'EXECUTE') : 'REFUSE';
+  const conviction = approval?.conviction ?? (signal.topsisScore >= 0.95 ? 'HIGH' : signal.topsisScore >= 0.85 ? 'MEDIUM' : 'LOW');
+  const recommendedAllocationPct = approval?.allocationPct ?? config.maxAllocationPerTradePct;
+  const recommendedLeverage = approval?.leverage ?? config.defaultLeverage;
+
   return {
     source: 'ALPHA_SIGNALS_SOUL_GIVER',
     version: '2.4.0',
     timestamp: new Date().toISOString(),
     event: 'TRADE_SIGNAL_PULSE',
     soul: {
-      directive: 'EXECUTE',
-      conviction: 'HIGH',
+      directive,
+      conviction,
       confidenceScore: signal.topsisScore,
       confidencePct: Number((signal.topsisScore * 100).toFixed(2)),
       asset: signal.asset,
       futuresPair: signal.futuresPair || `${signal.asset}/USDT`,
-      action: signal.action === 'STRONG_BUY' ? 'BUY' : 'SELL',
-      side: signal.action === 'STRONG_BUY' ? 'LONG' : 'SHORT',
+      action: dir.action,
+      side: dir.side,
       entryPrice: signal.entryPrice,
       takeProfit1: signal.target1,
       takeProfit2: signal.target2,
       stopLoss: signal.stopLoss,
       riskRewardRatio: signal.riskRewardRatio,
-      recommendedAllocationPct: config.maxAllocationPerTradePct,
-      recommendedLeverage: config.defaultLeverage,
+      recommendedAllocationPct,
+      recommendedLeverage,
       timeframe: signal.timeframe,
       marketConfluence: signal.explanation,
     },
@@ -632,6 +724,8 @@ export function formatSoulWebhookPayload(signal: SuperSignal, config: SoulAdapte
       shareOutcomeEndpoint: '/api/soul/share-outcome',
       shareOutcomeSchema: {
         signalId: signal.id,
+        exchangeOrderId: 'string (REQUIRED: Exchange order id)',
+        fillTimestamp: 'string (REQUIRED: ISO 8601 execution timestamp)',
         fillPrice: 'number',
         exitPrice: 'number',
         pnlPct: 'number',
@@ -646,11 +740,12 @@ export function generateSoulPythonSnippet(config: SoulAdapterConfig, customBaseU
   const baseUrl = customBaseUrl || (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://trading.mostarindustries.com');
   const endpoint = `${baseUrl}/api/soul`;
   return `# 🌟 Alpha Signals: Soul Giver Python Client
-# pip install requests websockets
+# pip install requests ccxt
 
 import json
 import requests
 import time
+from datetime import datetime, timezone
 
 SOUL_ENDPOINT = "${endpoint}"
 SOUL_SECRET = "${config.webhookSecret}"
@@ -662,26 +757,47 @@ def receive_soul_pulse():
     signals = res.json().get("signals", [])
     
     for sig in signals:
-        if sig["topsisScore"] >= ${config.minConfidenceThreshold}:
-            print(f"🔥 Soul Injected! Executing {sig['action']} on {sig['asset']} @ \${sig['entryPrice']}")
-            # Execute on your exchange:
-            # exchange.create_order(symbol=sig['futuresPair'], side='buy', price=sig['entryPrice'], stop_loss=sig['stopLoss'], take_profit=sig['target1'])
-            
-            # 🔄 Share your trade outcome back so the engine learns and grows:
-            share_outcome(sig["id"], sig["asset"], fill_price=sig["entryPrice"], pnl_pct=3.8)
+        soul = sig.get("soul", {})
+        if soul.get("directive") == "EXECUTE" and sig.get("topsisScore", 0) >= ${config.minConfidenceThreshold}:
+            action = soul.get("action") # "BUY" or "SELL" (never inverted)
+            if action not in ("BUY", "SELL"):
+                print(f"Skipping non-executable action: {action}")
+                continue
 
-def share_outcome(signal_id, asset, fill_price, pnl_pct):
+            print(f"🔥 Executing {action} on {sig['asset']} @ \${sig['entryPrice']}")
+            # 1. Execute with verified atomic bracket on exchange:
+            # order = exchange.create_order(
+            #     symbol=sig['futuresPair'],
+            #     type='market',
+            #     side=action.lower(),
+            #     amount=contracts
+            # )
+            # exchange_order_id = str(order['id'])
+            # fill_timestamp = datetime.fromtimestamp(order['timestamp'] / 1000, tz=timezone.utc).isoformat()
+            # fill_price = float(order.get('average') or order.get('price') or sig['entryPrice'])
+            
+            # 2. When position closes, report verified execution outcome:
+            # share_outcome(sig["id"], sig["asset"], exchange_order_id, fill_timestamp, fill_price, exit_price, pnl_pct)
+
+def share_outcome(signal_id, asset, exchange_order_id, fill_timestamp, fill_price, exit_price, pnl_pct):
+    """Shares real verified exchange outcome back to calibrated collective intelligence"""
+    if not exchange_order_id or not fill_timestamp:
+        raise ValueError("Exchange order ID and fill timestamp are required to report outcomes.")
+
     payload = {
         "nodeId": "py-bot-01",
         "signalId": signal_id,
+        "exchangeOrderId": str(exchange_order_id),
+        "fillTimestamp": str(fill_timestamp),
         "asset": asset,
         "fillPrice": fill_price,
+        "exitPrice": exit_price,
         "pnlPct": pnl_pct,
-        "slippageBps": 1.5,
+        "slippageBps": abs(fill_price - entry_price) / entry_price * 10000,
         "wasProfitable": pnl_pct > 0
     }
     requests.post(f"{SOUL_ENDPOINT}/share-outcome", json=payload)
-    print("✨ Trade outcome shared with Soul Mesh! Model learning calibrated.")
+    print("✨ Verified trade outcome shared with Soul Mesh! Model learning calibrated.")
 
 if __name__ == "__main__":
     receive_soul_pulse()
@@ -703,22 +819,30 @@ async function plugAndTrade() {
   });
 
   for (const signal of data.signals) {
-    if (signal.topsisScore >= ${config.minConfidenceThreshold}) {
-      console.log(\`✨ Soul received: \${signal.asset} \${signal.action} @ $\${signal.entryPrice}\`);
+    const soul = signal.soul || {};
+    if (soul.directive === 'EXECUTE' && signal.topsisScore >= ${config.minConfidenceThreshold}) {
+      const action = soul.action; // 'BUY' or 'SELL'
+      if (action !== 'BUY' && action !== 'SELL') continue;
+
+      console.log(\`✨ Executing: \${signal.asset} \${action} @ $\${signal.entryPrice}\`);
       
-      // 1. Execute order on CCXT or direct exchange API
-      // const order = await exchange.createOrder(signal.futuresPair, 'limit', 'buy', 1.0, signal.entryPrice);
+      // 1. Execute order on CCXT or direct exchange API:
+      // const order = await exchange.createOrder(signal.futuresPair, 'market', action.toLowerCase(), contracts);
       
-      // 2. Report outcome telemetry back to grow collective intelligence
-      await axios.post(\`\${SOUL_API}/share-outcome\`, {
-        nodeId: 'node-bot-ts',
-        signalId: signal.id,
-        asset: signal.asset,
-        pnlPct: 4.2,
-        slippageBps: 2.0,
-        wasProfitable: true
-      });
-      console.log('🌱 Data shared with Soul Giver. Continuous learning cycle updated.');
+      // 2. Report verified exchange outcome telemetry:
+      // await axios.post(\`\${SOUL_API}/share-outcome\`, {
+      //   nodeId: 'node-bot-ts',
+      //   signalId: signal.id,
+      //   exchangeOrderId: String(order.id),
+      //   fillTimestamp: new Date(order.timestamp).toISOString(),
+      //   asset: signal.asset,
+      //   fillPrice: order.average || order.price,
+      //   exitPrice: exitPrice,
+      //   pnlPct: calculatedPnlPct,
+      //   slippageBps: Math.abs(order.price - signal.entryPrice) / signal.entryPrice * 10000,
+      //   wasProfitable: calculatedPnlPct > 0
+      // });
+      console.log('🌱 Verified trade telemetry reported to Soul Mesh.');
     }
   }
 }

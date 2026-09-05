@@ -106,7 +106,7 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
       id: s.id,
       asset: s.asset,
       futuresPair: s.futuresPair || `${s.asset}/USDT`,
-      direction: s.action === 'STRONG_BUY' ? ('LONG' as const) : ('SHORT' as const),
+      direction: (s.action === 'STRONG_BUY' || s.action === 'BUY') ? ('LONG' as const) : ('SHORT' as const),
       entryPrice: s.entryPrice,
       target1: s.target1,
       stopLoss: s.stopLoss,
@@ -194,7 +194,11 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
 
   // Copy trade to clipboard
   const handleCopyTrade = (sig: SuperSignal) => {
-    const actionLabel = sig.action === 'STRONG_BUY' ? 'BUY / LONG' : 'SELL / SHORT';
+    const actionLabel = (sig.action === 'STRONG_BUY' || sig.action === 'BUY')
+      ? 'BUY / LONG'
+      : sig.action === 'NO_TRADE'
+      ? 'NO TRADE'
+      : 'SELL / SHORT';
     const text = `Trade Signal: ${sig.futuresPair || sig.asset + '/USDT'} (${actionLabel})\nEntry Price: $${sig.entryPrice}\nTake Profit: $${sig.target1}\nStop Loss: $${sig.stopLoss}\nConfidence: ${(sig.topsisScore * 100).toFixed(1)}%`;
     navigator.clipboard.writeText(text);
     setCopiedSignalId(sig.id);
@@ -515,16 +519,23 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Confidence Indicator */}
+                    {/* Mathematical Ideal Closeness & Tier */}
                     <div className="space-y-1.5 font-mono">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Model Confidence:</span>
-                        <span className="font-bold text-emerald-400">{confidencePct}% Probability</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400">Hausdorff Ideal Closeness:</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {sig.tier || 'HIGH_CONFLUENCE'}
+                          </span>
+                        </div>
+                        <span className="font-bold text-emerald-400">
+                          {((sig.idealCloseness ?? sig.topsisScore)).toFixed(4)} Closeness
+                        </span>
                       </div>
                       <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
                         <div
                           className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, Math.max(90, confidencePct))}%` }}
+                          style={{ width: `${Math.min(100, Math.max(10, (sig.idealCloseness ?? sig.topsisScore) * 100))}%` }}
                         />
                       </div>
                     </div>

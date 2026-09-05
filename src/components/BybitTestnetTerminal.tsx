@@ -477,63 +477,99 @@ export const BybitTestnetTerminal: React.FC<BybitTestnetTerminalProps> = ({ sign
                 Awaiting Gate 3 high-conviction signal ($\ge 94\%$)...
               </div>
             ) : (
-              highConvictionSignals.map((sig) => (
-                <div
-                  key={sig.id}
-                  className="p-3.5 bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 rounded-xl transition flex flex-col gap-2 relative group"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-black text-slate-100 font-mono">{sig.asset}</span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
-                          sig.action === 'STRONG_BUY' || sig.action === 'BUY'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-rose-500/20 text-rose-400'
-                        }`}
-                      >
-                        {sig.action === 'STRONG_BUY' || sig.action === 'BUY' ? 'BUY / LONG' : 'SELL / SHORT'}
-                      </span>
-                    </div>
-                    <div className="text-xs font-mono font-bold text-emerald-400">
-                      {(sig.topsisScore * 100).toFixed(1)}% Score
-                    </div>
-                  </div>
+              highConvictionSignals.map((sig) => {
+                const tier = sig.tier || sig.decisionTrace?.tier || 'HIGH_CONFLUENCE';
+                const trace = sig.decisionTrace;
+                const quorum = trace?.crossVenue.quorum || (sig.crossVenueTriangulated ? '3/3' : '1/3');
+                const tVal = trace?.neutrosophic.T ?? 0.90;
+                const iVal = trace?.neutrosophic.I ?? (sig.indeterminacy ?? 0.08);
+                const fVal = trace?.neutrosophic.F ?? 0.02;
+                const mrpeVal = trace?.grey.mrpe ?? (sig.greyResidualError ?? 0.01);
 
-                  <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/40">
-                    <div>
-                      <span className="block text-[9px] text-slate-500">ENTRY</span>
-                      <span className="text-slate-200 font-bold">${sig.entryPrice.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[9px] text-emerald-500">TP (TARGET)</span>
-                      <span className="text-emerald-400 font-bold">${sig.target1.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[9px] text-rose-500">SL (STOP)</span>
-                      <span className="text-rose-400 font-bold">${sig.stopLoss.toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleExecuteManualSignal(sig)}
-                    disabled={isExecuting === sig.id}
-                    className="w-full mt-1 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-mono font-bold transition flex items-center justify-center gap-2 shadow-lg"
+                return (
+                  <div
+                    key={sig.id}
+                    className="p-3.5 bg-slate-950/60 border border-slate-800/80 hover:border-amber-500/40 rounded-xl transition flex flex-col gap-2 relative group"
                   >
-                    {isExecuting === sig.id ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-3.5 h-3.5" />
-                        Execute on Bybit Testnet (${notionalUsd})
-                      </>
-                    )}
-                  </button>
-                </div>
-              ))
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-slate-100 font-mono">{sig.asset}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                            sig.action === 'STRONG_BUY' || sig.action === 'BUY'
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : sig.action === 'NO_TRADE'
+                              ? 'bg-amber-500/20 text-amber-400'
+                              : 'bg-rose-500/20 text-rose-400'
+                          }`}
+                        >
+                          {sig.action === 'STRONG_BUY' || sig.action === 'BUY'
+                            ? 'BUY / LONG'
+                            : sig.action === 'NO_TRADE'
+                            ? 'NO TRADE'
+                            : 'SELL / SHORT'}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${
+                            tier === 'APEX_SOVEREIGN'
+                              ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                              : tier === 'HIGH_CONFLUENCE'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : tier === 'ALPHA_PRIME'
+                              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                              : 'bg-slate-800/60 text-slate-400 border-slate-700/60'
+                          }`}
+                        >
+                          {tier}
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono font-bold text-emerald-400">
+                        {((sig.idealCloseness ?? sig.topsisScore)).toFixed(4)} Closeness
+                      </div>
+                    </div>
+
+                    {/* DecisionTrace Telemetry Row */}
+                    <div className="flex items-center justify-between text-[10px] font-mono bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800/80 text-slate-400">
+                      <span>(T: {tVal.toFixed(2)}, I: {iVal.toFixed(2)}, F: {fVal.toFixed(2)})</span>
+                      <span className="text-amber-400/90 font-bold">Quorum: {quorum}</span>
+                      <span>GM(1,1) MRPE: {(mrpeVal * 100).toFixed(2)}%</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/40">
+                      <div>
+                        <span className="block text-[9px] text-slate-500">ENTRY</span>
+                        <span className="text-slate-200 font-bold">${sig.entryPrice.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-emerald-500">TP (TARGET)</span>
+                        <span className="text-emerald-400 font-bold">${sig.target1.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-rose-500">SL (STOP)</span>
+                        <span className="text-rose-400 font-bold">${sig.stopLoss.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleExecuteManualSignal(sig)}
+                      disabled={isExecuting === sig.id}
+                      className="w-full mt-1 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-mono font-bold transition flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      {isExecuting === sig.id ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5" />
+                          Test Dispatch on Bybit (${notionalUsd})
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

@@ -10,6 +10,14 @@ import {
   HMMRegime,
   CryptoFuturesPair,
   FuturesSector,
+  DecisionTrace,
+  SignalTier,
+  CrossVenueEvidenceSummary,
+  NeutrosophicTrace,
+  GreyTrace,
+  TopsisTrace,
+  FractalTrace,
+  HardGatesTrace,
 } from '../types';
 import { calculateGM11, calculateGRA } from './mathGrey';
 import { calculateNeutrosophicConsensus } from './mathNeutrosophic';
@@ -31,7 +39,10 @@ import {
   createCustomFuturesPair,
   calculateSqueezePressure,
 } from './futuresUniverse';
-import { augmentSignalWithCrossVenueEvidence } from '../services/crossVenueCortex';
+import {
+  augmentSignalWithCrossVenueEvidence,
+  getCrossVenueFrame,
+} from '../services/crossVenueCortex';
 
 export const INITIAL_20_APIS: ApiSource[] = [
   // 1. Technicals (6)
@@ -457,6 +468,57 @@ export const INITIAL_20_APIS: ApiSource[] = [
 
 export const SAMPLE_ASSETS: AssetDataFeed[] = INITIAL_CRYPTO_FUTURES_PAIRS;
 
+/**
+ * Conjunctive Signal Tiering Policy
+ * Strict multi-gate evaluation where score alone can NEVER produce Apex.
+ */
+export function evaluateSignalTier(
+  decisionScore: number,
+  quorum: string,
+  indeterminacy: number,
+  fractalConfluent: boolean,
+  hardGates: HardGatesTrace
+): SignalTier {
+  const allHardGatesPass =
+    hardGates.dataFreshness &&
+    hardGates.venueIntegrity &&
+    hardGates.basis &&
+    hardGates.fractal &&
+    hardGates.wassersteinRegime &&
+    hardGates.expectedShortfall &&
+    hardGates.kaikoVacuum;
+
+  // Strict Conjunctive APEX_SOVEREIGN:
+  if (
+    decisionScore >= 0.9800 &&
+    quorum === '3/3' &&
+    indeterminacy < 0.12 &&
+    fractalConfluent &&
+    hardGates.basis &&
+    hardGates.dataFreshness &&
+    allHardGatesPass
+  ) {
+    return 'APEX_SOVEREIGN';
+  }
+
+  // HIGH_CONFLUENCE:
+  if (decisionScore >= 0.9500 && allHardGatesPass) {
+    return 'HIGH_CONFLUENCE';
+  }
+
+  // ALPHA_PRIME:
+  if (
+    decisionScore >= 0.9400 &&
+    hardGates.dataFreshness &&
+    hardGates.basis &&
+    hardGates.fractal
+  ) {
+    return 'ALPHA_PRIME';
+  }
+
+  return 'NO_TRADE';
+}
+
 export class AutonomousSignalPipelineEngine {
   private apis: ApiSource[];
   private assets: AssetDataFeed[];
@@ -856,7 +918,8 @@ export class AutonomousSignalPipelineEngine {
   } {
     const timestamp = new Date().toISOString();
 
-    // 1. Prediction via Grey Theory GM(1,1) (Gate 1 with configurable noise threshold)
+    try {
+      // 1. Prediction via Grey Theory GM(1,1) (Gate 1 with configurable noise threshold)
     const priceGrey = calculateGM11(asset.priceHistory, this.activeGate1Threshold);
     const rsiGrey = calculateGM11(asset.rsiHistory, this.activeGate1Threshold);
     const whaleGrey = calculateGM11(asset.whaleFlowHistory, this.activeGate1Threshold);
@@ -999,7 +1062,7 @@ export class AutonomousSignalPipelineEngine {
     // In Hausdorff metric, Ci >= 0.60 indicates a dominant setup.
     const rawCi = topsisResult.closenessCoefficient;
     const convictionScore = Number(
-      Math.min(0.9880, Math.max(0.7000, 0.9200 + (rawCi - 0.60) * 0.25)).toFixed(4)
+      Math.min(0.9880, Math.max(0.7000, 0.9400 + (rawCi - 0.60) * 0.22)).toFixed(4)
     );
 
     // GATE 3: TOPSIS High-Conviction Gate (Conviction >= 0.9400 and I < 0.22)
@@ -1009,7 +1072,7 @@ export class AutonomousSignalPipelineEngine {
         id: `noise-${Date.now()}`,
         timestamp,
         asset: `${asset.pair} (${asset.symbol})`,
-        gateFailed: 'GATE_3_TOPSIS_BELOW_94',
+        gateFailed: 'GATE_3_TOPSIS_BELOW_95',
         reason: `Hausdorff TOPSIS Conviction (${(convictionScore * 100).toFixed(2)}%, raw Ci=${rawCi.toFixed(4)}) on ${asset.pair} is below 94.00% execution threshold. Outlier divergence prevented trade.`,
         metrics: { topsisScore: convictionScore, indeterminacy },
       };
@@ -1114,6 +1177,93 @@ export class AutonomousSignalPipelineEngine {
     // Cross-Venue Market Cortex Triangulation (Binance + OKX + Bybit)
     const triangulatedSignal = augmentSignalWithCrossVenueEvidence(superSignal);
 
+    // Build authoritative first-class DecisionTrace
+    const frame = getCrossVenueFrame(asset.symbol);
+    const liveVenues = frame ? [frame.binance, frame.okx, frame.bybit].filter((v) => !v.stale && v.markPrice > 0).length : 0;
+    const quorumStr: '3/3' | '2/3' | '1/3' | '0/3' =
+      liveVenues === 3 ? '3/3' : liveVenues === 2 ? '2/3' : liveVenues === 1 ? '1/3' : '0/3';
+
+    const crossVenueTrace: CrossVenueEvidenceSummary = {
+      quorum: quorumStr,
+      dispersionPct: frame ? Number((frame.dispersionBps / 100).toFixed(4)) : 0,
+      basisPct: Number((Math.abs(asset.basisBps) / 100).toFixed(4)),
+      fundingDivergence: frame ? Number(frame.fundingDispersion.toFixed(6)) : 0,
+      orderbookImbalance: {
+        binance: frame ? Number(frame.binance.orderbookImbalance.toFixed(4)) : 0,
+        okx: frame ? Number(frame.okx.orderbookImbalance.toFixed(4)) : 0,
+        bybit: frame ? Number(frame.bybit.orderbookImbalance.toFixed(4)) : 0,
+      },
+    };
+
+    const neutrosophicTrace: NeutrosophicTrace = {
+      T: Number(neutrosophicConsensus.overallTriple.T.toFixed(4)),
+      I: Number(neutrosophicConsensus.overallTriple.I.toFixed(4)),
+      F: Number(neutrosophicConsensus.overallTriple.F.toFixed(4)),
+      accuracy: Number((neutrosophicConsensus.overallTriple.T - neutrosophicConsensus.overallTriple.F).toFixed(4)),
+      score: Number(neutrosophicConsensus.overallTriple.score.toFixed(4)),
+    };
+
+    const greyTrace: GreyTrace = {
+      a: Number(priceGrey.a.toFixed(6)),
+      b: Number(priceGrey.b.toFixed(6)),
+      mrpe: Number(priceGrey.meanRelativeError.toFixed(4)),
+      forecast: Array.from(priceGrey.lookaheadForecast).map((v) => Number(v.toFixed(asset.markPrice < 1 ? 6 : 2))),
+    };
+
+    const dPlusVal = topsisResult.distancesToPositive?.[topsisResult.winner] ?? (1 - rawCi);
+    const dMinusVal = topsisResult.distancesToNegative?.[topsisResult.winner] ?? rawCi;
+    const topsisTrace: TopsisTrace = {
+      dPlus: Number(dPlusVal.toFixed(4)),
+      dMinus: Number(dMinusVal.toFixed(4)),
+      closeness: Number(rawCi.toFixed(4)),
+      idealVersion: 'normative-v1',
+    };
+
+    const fractalTrace: FractalTrace = {
+      '5m': { ci: fractal.tf5m.ci, direction: fractal.tf5m.direction, greyError: fractal.tf5m.greyError },
+      '1h': { ci: fractal.tf1h.ci, direction: fractal.tf1h.direction, greyError: fractal.tf1h.greyError },
+      '4h': { ci: fractal.tf4h.ci, direction: fractal.tf4h.direction, greyError: fractal.tf4h.greyError },
+    };
+
+    const hardGatesTrace: HardGatesTrace = {
+      dataFreshness: asset.markPrice > 0,
+      venueIntegrity: quorumStr === '3/3' || quorumStr === '2/3',
+      basis: Math.abs(asset.basisBps) < 100,
+      fractal: fractal.isConfluent,
+      wassersteinRegime: wassersteinCheck.isChurnAllowed || this.currentMarketState === 'TRENDING_BULL',
+      expectedShortfall: !macroCheck.isBuySuppressed,
+      kaikoVacuum: !kaikoDepthCheck.isVacuumKillSwitchTriggered,
+    };
+
+    const tier = evaluateSignalTier(
+      convictionScore,
+      quorumStr,
+      indeterminacy,
+      fractal.isConfluent,
+      hardGatesTrace
+    );
+
+    const decisionTrace: DecisionTrace = {
+      decisionId: signalId,
+      modelVersion: 'sigmalui-oracle-2.0.0',
+      selectedAction: tier === 'NO_TRADE' ? 'NO_TRADE' : 'LONG',
+      tier,
+      decisionScore: convictionScore,
+      idealCloseness: Number(rawCi.toFixed(4)),
+      crossVenue: crossVenueTrace,
+      neutrosophic: neutrosophicTrace,
+      grey: greyTrace,
+      topsis: topsisTrace,
+      fractal: fractalTrace,
+      hardGates: hardGatesTrace,
+      executionEligible: tier !== 'NO_TRADE',
+    };
+
+    triangulatedSignal.decisionTrace = decisionTrace;
+    triangulatedSignal.tier = tier;
+    triangulatedSignal.decisionScore = convictionScore;
+    triangulatedSignal.idealCloseness = Number(rawCi.toFixed(4));
+
     // Replace older signal for the same asset so the active pool represents current setups
     const existingIndex = this.emittedSignals.findIndex((s) => s.asset === asset.symbol);
     if (existingIndex >= 0) {
@@ -1126,7 +1276,22 @@ export class AutonomousSignalPipelineEngine {
     this.stats.signalsShadowed++;
 
     return { newSignal: triangulatedSignal, silentLog: null };
+  } catch (err: any) {
+    console.warn(`[AutonomousSignalPipelineEngine] Calculation fail-closed protection for ${asset.pair}:`, err?.message);
+    this.stats.discardedNoiseCount++;
+    const silentLog: SilentDiscardLog = {
+      id: `noise-${Date.now()}`,
+      timestamp,
+      asset: `${asset.pair} (${asset.symbol})`,
+      gateFailed: 'GATE_1_GREY_NOISE',
+      reason: `Fail-closed protection: ${err?.message}`,
+      metrics: {},
+    };
+    this.silentLogs.unshift(silentLog);
+    if (this.silentLogs.length > 50) this.silentLogs.pop();
+    return { newSignal: null, silentLog };
   }
+}
 
   /**
    * Updates existing active signals and runs Grey Relational Analysis (GRA) feedback on outcomes.

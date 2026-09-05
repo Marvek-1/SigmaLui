@@ -107,21 +107,25 @@ function calculateRealizedVolatility(prices: number[]): number {
  */
 function evaluateGmDirection(
   priceSlice: number[],
-  fallbackChangePct: number = 0
-): { direction: 'UP' | 'DOWN'; deltaPct: number; gmSlopeA: number; errorPct: number } {
+  fallbackChangePct: number = 0,
+  tf: TimeframeKey = '1m'
+): TimeframeDirection {
   if (priceSlice.length >= 4) {
     try {
-      const gm = calculateGM11(priceSlice, 0.02);
+      const gm = calculateGM11(priceSlice, { horizon: 3 });
       const startP = priceSlice[0];
       const endP = priceSlice[priceSlice.length - 1];
       const realizedReturn = startP > 0 ? ((endP - startP) / startP) * 100 : 0;
       // In GM(1,1), dx/dt + a*x = b. When a < 0, exponential growth e^(-at) is positive (accelerating upwards).
-      const isUp = gm.a < 0 || (Math.abs(gm.a) < 0.005 && realizedReturn >= 0) || gm.momentumDelta > 0;
+      const momDelta = (gm as any).momentumDelta ?? (gm.ForecastReturnsPctFromLastActual?.[0] ?? 0);
+      const isUp = gm.a < 0 || (Math.abs(gm.a) < 0.005 && realizedReturn >= 0) || momDelta > 0;
+      const mrpe = (gm as any).meanRelativeError ?? (gm.InSampleMRPE ?? 0);
       return {
+        tf,
         direction: isUp ? 'UP' : 'DOWN',
-        deltaPct: Number((gm.momentumDelta !== 0 ? gm.momentumDelta : realizedReturn).toFixed(2)),
+        deltaPct: Number((momDelta !== 0 ? momDelta : realizedReturn).toFixed(2)),
         gmSlopeA: gm.a,
-        errorPct: Number((gm.meanRelativeError * 100).toFixed(2)),
+        errorPct: Number((mrpe * 100).toFixed(2)),
       };
     } catch {
       // Fallback to geometric return if matrix is singular
@@ -130,6 +134,7 @@ function evaluateGmDirection(
 
   const isUp = fallbackChangePct >= 0;
   return {
+    tf,
     direction: isUp ? 'UP' : 'DOWN',
     deltaPct: Number(fallbackChangePct.toFixed(2)),
     gmSlopeA: isUp ? -0.018 : 0.018,
@@ -237,10 +242,10 @@ export const SignalTrajectoryChart: React.FC<SignalTrajectoryChartProps> = ({
       const tf15mSlice = history.slice(Math.max(0, hLen - 20));
       const tf1hSlice = history;
 
-      const tf1m = evaluateGmDirection(tf1mSlice, change24h * 0.08);
-      const tf5m = evaluateGmDirection(tf5mSlice, change24h * 0.25);
-      const tf15m = evaluateGmDirection(tf15mSlice, change24h * 0.55);
-      const tf1h = evaluateGmDirection(tf1hSlice, change24h);
+      const tf1m = evaluateGmDirection(tf1mSlice, change24h * 0.08, '1m');
+      const tf5m = evaluateGmDirection(tf5mSlice, change24h * 0.25, '5m');
+      const tf15m = evaluateGmDirection(tf15mSlice, change24h * 0.55, '15m');
+      const tf1h = evaluateGmDirection(tf1hSlice, change24h, '1h');
 
       const upCount = [tf1m, tf5m, tf15m, tf1h].filter((t) => t.direction === 'UP').length;
       const overallDirection: 'UP' | 'DOWN' = upCount >= 2 ? 'UP' : 'DOWN';
@@ -313,8 +318,9 @@ export const SignalTrajectoryChart: React.FC<SignalTrajectoryChartProps> = ({
       let gmError = 0.48;
       try {
         if (localWindow.length >= 4) {
-          const gm = calculateGM11(localWindow, 0.02);
-          gmError = Number((gm.meanRelativeError * 100).toFixed(2));
+          const gm = calculateGM11(localWindow, { horizon: 3 });
+          const mrpe = (gm as any).meanRelativeError ?? (gm.InSampleMRPE ?? 0.0048);
+          gmError = Number((mrpe * 100).toFixed(2));
         }
       } catch {
         gmError = 0.52;
@@ -411,8 +417,9 @@ export const SignalTrajectoryChart: React.FC<SignalTrajectoryChartProps> = ({
         let slopeA = tfDir.gmSlopeA;
         try {
           if (recentPrices.length >= 4) {
-            const gm = calculateGM11(recentPrices, 0.02);
-            newError = Number((gm.meanRelativeError * 100).toFixed(2));
+            const gm = calculateGM11(recentPrices, { horizon: 3 });
+            const mrpe = (gm as any).meanRelativeError ?? (gm.InSampleMRPE ?? 0.005);
+            newError = Number((mrpe * 100).toFixed(2));
             slopeA = gm.a;
           }
         } catch {

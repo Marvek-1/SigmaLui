@@ -13,6 +13,12 @@
       (function() {
         try {
           if (typeof window !== 'undefined') {
+            if (typeof window.require === 'undefined') {
+              window.require = function() { return {}; };
+            }
+            if (typeof window.process === 'undefined') {
+              window.process = { env: {}, versions: {} };
+            }
             var origFetch = window.fetch ? window.fetch.bind(window) : undefined;
             var _customFetch = origFetch;
             try {
