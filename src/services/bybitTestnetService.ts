@@ -82,6 +82,8 @@ export type BybitCandleTimeframe =
   | 'W'
   | 'M';
 
+export type BybitInterval = BybitCandleTimeframe;
+
 export interface BybitOHLCVCandle {
   startTime: number;
   openTime: string;
@@ -93,10 +95,12 @@ export interface BybitOHLCVCandle {
   turnover: number;
 }
 
+export type BybitCandle = BybitOHLCVCandle;
+
 export interface KDJIndicator {
   period: number;
-  kSmoothing: number;
-  dSmoothing: number;
+  kSmoothing?: number;
+  dSmoothing?: number;
   k: number;
   d: number;
   j: number;
@@ -108,11 +112,19 @@ export interface KDJIndicator {
     | 'BULLISH'
     | 'BEARISH'
     | 'NEUTRAL';
+  signal:
+    | 'GOLDEN_CROSS'
+    | 'DEATH_CROSS'
+    | 'BULLISH'
+    | 'BEARISH'
+    | 'NEUTRAL';
   zone:
     | 'OVERSOLD'
     | 'OVERBOUGHT'
     | 'NEUTRAL';
 }
+
+export type KDJResult = KDJIndicator;
 
 export interface RSIIndicator {
   period: number;
@@ -125,6 +137,8 @@ export interface RSIIndicator {
     | 'BEARISH'
     | 'NEUTRAL';
 }
+
+export type RSIResult = RSIIndicator;
 
 export interface MACDIndicator {
   fastPeriod: number;
@@ -142,11 +156,20 @@ export interface MACDIndicator {
     | 'BULLISH'
     | 'BEARISH'
     | 'NEUTRAL';
+  state:
+    | 'BULLISH_CROSS'
+    | 'BEARISH_CROSS'
+    | 'BULLISH'
+    | 'BEARISH'
+    | 'NEUTRAL';
 }
+
+export type MACDResult = MACDIndicator;
 
 export interface BollingerIndicator {
   period: number;
   standardDeviations: number;
+  deviation?: number;
   upper: number;
   middle: number;
   lower: number;
@@ -158,7 +181,15 @@ export interface BollingerIndicator {
     | 'MIDDLE'
     | 'NEAR_LOWER'
     | 'BELOW_LOWER';
+  state:
+    | 'ABOVE_UPPER'
+    | 'NEAR_UPPER'
+    | 'MIDDLE'
+    | 'NEAR_LOWER'
+    | 'BELOW_LOWER';
 }
+
+export type BollingerResult = BollingerIndicator;
 
 export interface MarketIndicatorSnapshot {
   symbol: string;
@@ -166,6 +197,8 @@ export interface MarketIndicatorSnapshot {
   candleCount: number;
 
   latestCandle: BybitOHLCVCandle;
+  latest?: BybitCandle;
+  closedCandlesOnly?: true;
 
   kdj: KDJIndicator;
   rsi: RSIIndicator;
@@ -176,6 +209,8 @@ export interface MarketIndicatorSnapshot {
   source: 'BYBIT_V5';
 }
 
+export type MarketAnalysisSnapshot = MarketIndicatorSnapshot;
+
 export interface MultiTimeframeAnalysis {
   symbol: string;
 
@@ -184,6 +219,14 @@ export interface MultiTimeframeAnalysis {
   >;
 
   generatedAt: string;
+}
+
+function roundTA(value: number, digits = 8): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
 }
 
 const cleanKey = (val?: string) => (val ? val.trim().replace(/^["']|["']$/g, '').trim() : '');
@@ -732,6 +775,56 @@ export class BybitTestnetService {
     const symbol = `${signal.asset.toUpperCase()}USDT`;
     const side: 'Buy' | 'Sell' = signal.action === 'STRONG_BUY' || signal.action === 'BUY' ? 'Buy' : 'Sell';
 
+    // 0. Bybit Fractal Technical Confirmation Gate (5m KDJ + 1h RSI/MACD + 4h RSI/MACD)
+    try {
+      const technicals = await this.getFractalMarketAnalysis(symbol);
+      const m5 = technicals.timeframes['5m'];
+      const h1 = technicals.timeframes['1h'];
+      const h4 = technicals.timeframes['4h'];
+
+      if (m5 && h1 && h4) {
+        const longConfirmation =
+          (h1.macd.state === 'BULLISH' || h1.macd.state === 'BULLISH_CROSS') &&
+          h1.rsi.value >= 50 &&
+          (m5.kdj.signal === 'GOLDEN_CROSS' || m5.kdj.signal === 'BULLISH') &&
+          h4.rsi.value >= 45 &&
+          h4.macd.state !== 'BEARISH_CROSS';
+
+        const shortConfirmation =
+          (h1.macd.state === 'BEARISH' || h1.macd.state === 'BEARISH_CROSS') &&
+          h1.rsi.value <= 50 &&
+          (m5.kdj.signal === 'DEATH_CROSS' || m5.kdj.signal === 'BEARISH') &&
+          h4.rsi.value <= 55 &&
+          h4.macd.state !== 'BULLISH_CROSS';
+
+        if (side === 'Buy' && !longConfirmation) {
+          return {
+            ok: false,
+            reason:
+              `Bybit technical confirmation rejected LONG ${symbol}: ` +
+              `5m KDJ=${m5.kdj.signal}, ` +
+              `1h RSI=${h1.rsi.value}, ` +
+              `1h MACD=${h1.macd.state}, ` +
+              `4h MACD=${h4.macd.state}`,
+          };
+        }
+
+        if (side === 'Sell' && !shortConfirmation) {
+          return {
+            ok: false,
+            reason:
+              `Bybit technical confirmation rejected SHORT ${symbol}: ` +
+              `5m KDJ=${m5.kdj.signal}, ` +
+              `1h RSI=${h1.rsi.value}, ` +
+              `1h MACD=${h1.macd.state}, ` +
+              `4h MACD=${h4.macd.state}`,
+          };
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[BybitTestnetService] Fractal technical confirmation check skipped for ${symbol}:`, err?.message);
+    }
+
     // 1. Fetch Bybit's real-time mark price for exact on-venue anchoring
     const bybitLivePrice = await this.getMarkPrice(symbol);
     const executionPrice = bybitLivePrice && bybitLivePrice > 0 ? bybitLivePrice : signal.entryPrice;
@@ -1137,6 +1230,7 @@ export class BybitTestnetService {
       previousD: roundIndicator(previous.d),
 
       cross,
+      signal: cross,
       zone,
     };
   }
@@ -1268,6 +1362,7 @@ export class BybitTestnetService {
         roundIndicator(previous.histogram),
 
       cross,
+      state: cross,
     };
   }
 
@@ -1335,6 +1430,7 @@ export class BybitTestnetService {
     return {
       period,
       standardDeviations,
+      deviation: standardDeviations,
 
       upper: roundIndicator(upper),
       middle: roundIndicator(middle),
@@ -1347,6 +1443,7 @@ export class BybitTestnetService {
         roundIndicator(percentB),
 
       position,
+      state: position,
     };
   }
 
@@ -1409,6 +1506,8 @@ export class BybitTestnetService {
       candleCount: candles.length,
 
       latestCandle,
+      latest: latestCandle,
+      closedCandlesOnly: true,
 
       kdj:
         this.calculateKDJ(
@@ -1506,6 +1605,43 @@ export class BybitTestnetService {
     });
 
     return analysis;
+  }
+
+  public calculateBollinger(
+    candles: BybitOHLCVCandle[],
+    period = 20,
+    deviation = 2
+  ): BollingerIndicator {
+    return this.calculateBollingerBands(candles, period, deviation);
+  }
+
+  public async getMarketAnalysis(
+    symbol: string,
+    timeframe: BybitInterval = '15',
+    history = 300
+  ): Promise<MarketAnalysisSnapshot> {
+    return this.getMarketIndicators(symbol, timeframe, history);
+  }
+
+  public async getFractalMarketAnalysis(symbol: string) {
+    const normalizedSymbol = symbol.trim().toUpperCase();
+
+    const [m5, h1, h4] = await Promise.all([
+      this.getMarketAnalysis(normalizedSymbol, '5', 300),
+      this.getMarketAnalysis(normalizedSymbol, '60', 300),
+      this.getMarketAnalysis(normalizedSymbol, '240', 300),
+    ]);
+
+    return {
+      symbol: normalizedSymbol,
+      source: 'BYBIT_V5' as const,
+      timeframes: {
+        '5m': m5,
+        '1h': h1,
+        '4h': h4,
+      },
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   public async getMarketHistory(

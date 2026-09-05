@@ -407,6 +407,30 @@ app.get('/api/bybit/klines/:symbol', async (req, res) => {
   }
 });
 
+app.get('/api/bybit/market/:symbol', async (req, res) => {
+  try {
+    const symbol = String(req.params.symbol).trim().toUpperCase();
+    const timeframe = String(req.query.timeframe || '15') as any;
+    const history = Math.min(1000, Math.max(100, Number(req.query.history || 300)));
+    const analysis = await bybitTestnetService.getMarketAnalysis(symbol, timeframe, history);
+    res.json(analysis);
+  } catch (error: any) {
+    console.error('[API] Bybit market analysis error:', error);
+    res.status(500).json({ ok: false, error: error?.message || 'Market analysis failed' });
+  }
+});
+
+app.get('/api/bybit/fractal/:symbol', async (req, res) => {
+  try {
+    const symbol = String(req.params.symbol).trim().toUpperCase();
+    const analysis = await bybitTestnetService.getFractalMarketAnalysis(symbol);
+    res.json(analysis);
+  } catch (error: any) {
+    console.error('[API] Fractal analysis error:', error);
+    res.status(500).json({ ok: false, error: error?.message || 'Fractal analysis failed' });
+  }
+});
+
 app.post('/api/bybit/order', async (req, res) => {
   const { signalId, asset } = req.body || {};
   let targetSignal: SuperSignal | undefined;
