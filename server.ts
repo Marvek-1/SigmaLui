@@ -373,6 +373,40 @@ app.get('/api/bybit/orders', (req, res) => {
   res.json({ orders: bybitTestnetService.getRecentOrders(), timestamp: Date.now() });
 });
 
+app.get('/api/bybit/indicators/:symbol', async (req, res) => {
+  try {
+    const symbol = req.params.symbol;
+    const timeframe = (req.query.timeframe as any) || '60';
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 300;
+    const indicators = await bybitTestnetService.getMarketIndicators(symbol, timeframe, limit);
+    res.json({ ok: true, data: indicators });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message || 'Failed to calculate market indicators' });
+  }
+});
+
+app.get('/api/bybit/multi-indicators/:symbol', async (req, res) => {
+  try {
+    const symbol = req.params.symbol;
+    const analysis = await bybitTestnetService.getMultiTimeframeAnalysis(symbol);
+    res.json({ ok: true, data: analysis });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message || 'Failed to fetch multi-timeframe analysis' });
+  }
+});
+
+app.get('/api/bybit/klines/:symbol', async (req, res) => {
+  try {
+    const symbol = req.params.symbol;
+    const timeframe = (req.query.timeframe as any) || '60';
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 300;
+    const history = await bybitTestnetService.getMarketHistory(symbol, timeframe, limit);
+    res.json({ ok: true, data: history });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message || 'Failed to fetch market history' });
+  }
+});
+
 app.post('/api/bybit/order', async (req, res) => {
   const { signalId, asset } = req.body || {};
   let targetSignal: SuperSignal | undefined;

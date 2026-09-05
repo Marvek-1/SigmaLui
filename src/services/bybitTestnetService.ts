@@ -67,7 +67,335 @@ export interface BybitTestnetConfig {
   maxLeverage: number;
 }
 
+export type BybitCandleTimeframe =
+  | '1'
+  | '3'
+  | '5'
+  | '15'
+  | '30'
+  | '60'
+  | '120'
+  | '240'
+  | '360'
+  | '720'
+  | 'D'
+  | 'W'
+  | 'M';
+
+export interface BybitOHLCVCandle {
+  startTime: number;
+  openTime: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  turnover: number;
+}
+
+export interface KDJIndicator {
+  period: number;
+  kSmoothing: number;
+  dSmoothing: number;
+  k: number;
+  d: number;
+  j: number;
+  previousK: number;
+  previousD: number;
+  cross:
+    | 'GOLDEN_CROSS'
+    | 'DEATH_CROSS'
+    | 'BULLISH'
+    | 'BEARISH'
+    | 'NEUTRAL';
+  zone:
+    | 'OVERSOLD'
+    | 'OVERBOUGHT'
+    | 'NEUTRAL';
+}
+
+export interface RSIIndicator {
+  period: number;
+  value: number;
+  previous: number;
+  state:
+    | 'OVERSOLD'
+    | 'OVERBOUGHT'
+    | 'BULLISH'
+    | 'BEARISH'
+    | 'NEUTRAL';
+}
+
+export interface MACDIndicator {
+  fastPeriod: number;
+  slowPeriod: number;
+  signalPeriod: number;
+  macd: number;
+  signal: number;
+  histogram: number;
+  previousMacd: number;
+  previousSignal: number;
+  previousHistogram: number;
+  cross:
+    | 'BULLISH_CROSS'
+    | 'BEARISH_CROSS'
+    | 'BULLISH'
+    | 'BEARISH'
+    | 'NEUTRAL';
+}
+
+export interface BollingerIndicator {
+  period: number;
+  standardDeviations: number;
+  upper: number;
+  middle: number;
+  lower: number;
+  bandwidth: number;
+  percentB: number;
+  position:
+    | 'ABOVE_UPPER'
+    | 'NEAR_UPPER'
+    | 'MIDDLE'
+    | 'NEAR_LOWER'
+    | 'BELOW_LOWER';
+}
+
+export interface MarketIndicatorSnapshot {
+  symbol: string;
+  timeframe: BybitCandleTimeframe;
+  candleCount: number;
+
+  latestCandle: BybitOHLCVCandle;
+
+  kdj: KDJIndicator;
+  rsi: RSIIndicator;
+  macd: MACDIndicator;
+  bollinger: BollingerIndicator;
+
+  generatedAt: string;
+  source: 'BYBIT_V5';
+}
+
+export interface MultiTimeframeAnalysis {
+  symbol: string;
+
+  timeframes: Partial<
+    Record<BybitCandleTimeframe, MarketIndicatorSnapshot>
+  >;
+
+  generatedAt: string;
+}
+
 const cleanKey = (val?: string) => (val ? val.trim().replace(/^["']|["']$/g, '').trim() : '');
+
+function roundIndicator(value: number, decimals = 6): number {
+  if (!Number.isFinite(value)) return 0;
+
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function simpleMovingAverage(values: number[]): number {
+  if (!values.length) return 0;
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function calculateEMA(values: number[], period: number): number[] {
+  if (period <= 0) {
+    throw new Error('EMA period must be greater than zero');
+  }
+
+  if (values.length < period) {
+    throw new Error(
+      `Not enough data for EMA(${period}). Received ${values.length} values`
+    );
+  }
+
+  const multiplier = 2 / (period + 1);
+
+  const result: number[] = new Array(values.length).fill(NaN);
+
+  // Seed the EMA with an SMA of the first `period` observations.
+  const seed = simpleMovingAverage(values.slice(0, period));
+
+  result[period - 1] = seed;
+
+  let previous = seed;
+
+  for (let i = period; i < values.length; i++) {
+    const current =
+      (values[i] - previous) * multiplier + previous;
+
+    result[i] = current;
+    previous = current;
+  }
+
+  return result;
+}
+
+function calculateRSISeries(
+  closes: number[],
+  period = 14
+): number[] {
+  if (closes.length < period + 1) {
+    throw new Error(
+      `Not enough candles for RSI(${period}). ` +
+      `Need at least ${period + 1}, received ${closes.length}`
+    );
+  }
+
+  const result: number[] =
+    new Array(closes.length).fill(NaN);
+
+  let gainSum = 0;
+  let lossSum = 0;
+
+  for (let i = 1; i <= period; i++) {
+    const delta = closes[i] - closes[i - 1];
+
+    if (delta >= 0) {
+      gainSum += delta;
+    } else {
+      lossSum += Math.abs(delta);
+    }
+  }
+
+  let averageGain = gainSum / period;
+  let averageLoss = lossSum / period;
+
+  const firstRs =
+    averageLoss === 0
+      ? Infinity
+      : averageGain / averageLoss;
+
+  result[period] =
+    averageLoss === 0
+      ? 100
+      : 100 - 100 / (1 + firstRs);
+
+  // Wilder smoothing
+  for (let i = period + 1; i < closes.length; i++) {
+    const delta = closes[i] - closes[i - 1];
+
+    const gain = delta > 0 ? delta : 0;
+    const loss = delta < 0 ? Math.abs(delta) : 0;
+
+    averageGain =
+      (averageGain * (period - 1) + gain) / period;
+
+    averageLoss =
+      (averageLoss * (period - 1) + loss) / period;
+
+    if (averageLoss === 0) {
+      result[i] = 100;
+      continue;
+    }
+
+    const rs = averageGain / averageLoss;
+
+    result[i] = 100 - 100 / (1 + rs);
+  }
+
+  return result;
+}
+
+function calculateKDJSeries(
+  candles: BybitOHLCVCandle[],
+  period = 9,
+  kSmoothing = 3,
+  dSmoothing = 3
+): Array<{ k: number; d: number; j: number }> {
+  if (candles.length < period) {
+    throw new Error(
+      `Not enough candles for KDJ(${period}). ` +
+      `Received ${candles.length}`
+    );
+  }
+
+  let previousK = 50;
+  let previousD = 50;
+
+  const result: Array<{
+    k: number;
+    d: number;
+    j: number;
+  }> = [];
+
+  for (let i = 0; i < candles.length; i++) {
+    if (i < period - 1) {
+      result.push({
+        k: NaN,
+        d: NaN,
+        j: NaN,
+      });
+
+      continue;
+    }
+
+    const window = candles.slice(
+      i - period + 1,
+      i + 1
+    );
+
+    const highestHigh = Math.max(
+      ...window.map(candle => candle.high)
+    );
+
+    const lowestLow = Math.min(
+      ...window.map(candle => candle.low)
+    );
+
+    const denominator = highestHigh - lowestLow;
+
+    const rsv =
+      denominator === 0
+        ? 50
+        : ((candles[i].close - lowestLow) /
+            denominator) *
+          100;
+
+    /*
+     * Standard KDJ smoothing:
+     * K = previousK * (kSmooth - 1) / kSmooth
+     *     + RSV / kSmooth
+     *
+     * D = previousD * (dSmooth - 1) / dSmooth
+     *     + K / dSmooth
+     */
+
+    const k =
+      previousK * ((kSmoothing - 1) / kSmoothing) +
+      rsv / kSmoothing;
+
+    const d =
+      previousD * ((dSmoothing - 1) / dSmoothing) +
+      k / dSmoothing;
+
+    const j = 3 * k - 2 * d;
+
+    result.push({ k, d, j });
+
+    previousK = k;
+    previousD = d;
+  }
+
+  return result;
+}
+
+function standardDeviation(values: number[]): number {
+  if (!values.length) return 0;
+
+  const mean = simpleMovingAverage(values);
+
+  const variance =
+    values.reduce((sum, value) => {
+      const diff = value - mean;
+      return sum + diff * diff;
+    }, 0) / values.length;
+
+  return Math.sqrt(variance);
+}
 
 export class BybitTestnetService {
   private config: BybitTestnetConfig;
@@ -77,6 +405,13 @@ export class BybitTestnetService {
   private lastError: string | null = null;
   private instrumentFilters: Map<string, InstrumentFilter> = new Map();
   private lastInstrumentFetch: number = 0;
+  private marketAnalysisCache: Map<
+    string,
+    {
+      expiresAt: number;
+      snapshot: MarketIndicatorSnapshot;
+    }
+  > = new Map();
 
   constructor() {
     this.config = {
@@ -547,6 +882,666 @@ export class BybitTestnetService {
     return this.recentOrders;
   }
 
+  /**
+   * Retrieves real OHLCV candles directly from Bybit V5.
+   *
+   * Bybit returns candles newest -> oldest.
+   * This function converts them to oldest -> newest,
+   * which is required for technical indicator calculations.
+   */
+  public async getKlines(
+    symbol: string,
+    timeframe: BybitCandleTimeframe = '60',
+    limit = 300,
+    closedCandlesOnly = true
+  ): Promise<BybitOHLCVCandle[]> {
+    const normalizedSymbol = symbol
+      .trim()
+      .toUpperCase();
+
+    const safeLimit = Math.max(
+      20,
+      Math.min(1000, Math.floor(limit))
+    );
+
+    /*
+     * Request one extra candle because the newest candle
+     * is normally the still-forming/live candle.
+     */
+    const requestLimit =
+      closedCandlesOnly
+        ? Math.min(1000, safeLimit + 1)
+        : safeLimit;
+
+    const qs = new URLSearchParams({
+      category: 'linear',
+      symbol: normalizedSymbol,
+      interval: timeframe,
+      limit: String(requestLimit),
+    });
+
+    const url =
+      `${this.config.baseUrl}/v5/market/kline?${qs.toString()}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Bybit Kline HTTP ${response.status}: ` +
+          `${response.statusText}`
+        );
+      }
+
+      const json = await response.json();
+
+      if (json.retCode !== 0) {
+        throw new Error(
+          `Bybit Kline Error (${json.retCode}): ` +
+          `${json.retMsg}`
+        );
+      }
+
+      if (!Array.isArray(json.result?.list)) {
+        throw new Error(
+          `Invalid Bybit Kline response for ${normalizedSymbol}`
+        );
+      }
+
+      const candles: BybitOHLCVCandle[] =
+        json.result.list
+          .map((row: string[]) => {
+            const startTime = Number(row[0]);
+
+            return {
+              startTime,
+              openTime: new Date(startTime).toISOString(),
+              open: Number(row[1]),
+              high: Number(row[2]),
+              low: Number(row[3]),
+              close: Number(row[4]),
+              volume: Number(row[5]),
+              turnover: Number(row[6]),
+            };
+          })
+          .filter((candle: BybitOHLCVCandle) => {
+            return (
+              Number.isFinite(candle.startTime) &&
+              Number.isFinite(candle.open) &&
+              Number.isFinite(candle.high) &&
+              Number.isFinite(candle.low) &&
+              Number.isFinite(candle.close) &&
+              candle.open > 0 &&
+              candle.high > 0 &&
+              candle.low > 0 &&
+              candle.close > 0
+            );
+          })
+          .sort(
+            (
+              a: BybitOHLCVCandle,
+              b: BybitOHLCVCandle
+            ) => a.startTime - b.startTime
+          );
+
+      /*
+       * Bybit's newest candle is usually still forming.
+       *
+       * Strategies should normally evaluate completed
+       * candles so indicators do not repaint while an
+       * order decision is being made.
+       */
+      if (closedCandlesOnly && candles.length > 1) {
+        candles.pop();
+      }
+
+      return candles.slice(-safeLimit);
+    } catch (err: any) {
+      console.error(
+        `[BybitTestnetService] Kline fetch failed ` +
+          `${normalizedSymbol} ${timeframe}:`,
+        err
+      );
+
+      throw err;
+    }
+  }
+
+  public calculateRSI(
+    candles: BybitOHLCVCandle[],
+    period = 14
+  ): RSIIndicator {
+    const closes = candles.map(c => c.close);
+
+    const series = calculateRSISeries(
+      closes,
+      period
+    );
+
+    const validValues = series.filter(
+      value => Number.isFinite(value)
+    );
+
+    if (validValues.length < 2) {
+      throw new Error(
+        `Unable to calculate stable RSI(${period})`
+      );
+    }
+
+    const value =
+      validValues[validValues.length - 1];
+
+    const previous =
+      validValues[validValues.length - 2];
+
+    let state: RSIIndicator['state'];
+
+    if (value >= 70) {
+      state = 'OVERBOUGHT';
+    } else if (value <= 30) {
+      state = 'OVERSOLD';
+    } else if (value > 55) {
+      state = 'BULLISH';
+    } else if (value < 45) {
+      state = 'BEARISH';
+    } else {
+      state = 'NEUTRAL';
+    }
+
+    return {
+      period,
+      value: roundIndicator(value),
+      previous: roundIndicator(previous),
+      state,
+    };
+  }
+
+  public calculateKDJ(
+    candles: BybitOHLCVCandle[],
+    period = 9,
+    kSmoothing = 3,
+    dSmoothing = 3
+  ): KDJIndicator {
+    const series = calculateKDJSeries(
+      candles,
+      period,
+      kSmoothing,
+      dSmoothing
+    ).filter(
+      value =>
+        Number.isFinite(value.k) &&
+        Number.isFinite(value.d)
+    );
+
+    if (series.length < 2) {
+      throw new Error(
+        `Unable to calculate stable KDJ(${period},` +
+          `${kSmoothing},${dSmoothing})`
+      );
+    }
+
+    const current =
+      series[series.length - 1];
+
+    const previous =
+      series[series.length - 2];
+
+    let cross: KDJIndicator['cross'];
+
+    if (
+      previous.k <= previous.d &&
+      current.k > current.d
+    ) {
+      cross = 'GOLDEN_CROSS';
+    } else if (
+      previous.k >= previous.d &&
+      current.k < current.d
+    ) {
+      cross = 'DEATH_CROSS';
+    } else if (current.k > current.d) {
+      cross = 'BULLISH';
+    } else if (current.k < current.d) {
+      cross = 'BEARISH';
+    } else {
+      cross = 'NEUTRAL';
+    }
+
+    let zone: KDJIndicator['zone'];
+
+    if (current.k >= 80 && current.d >= 80) {
+      zone = 'OVERBOUGHT';
+    } else if (
+      current.k <= 20 &&
+      current.d <= 20
+    ) {
+      zone = 'OVERSOLD';
+    } else {
+      zone = 'NEUTRAL';
+    }
+
+    return {
+      period,
+      kSmoothing,
+      dSmoothing,
+
+      k: roundIndicator(current.k),
+      d: roundIndicator(current.d),
+      j: roundIndicator(current.j),
+
+      previousK: roundIndicator(previous.k),
+      previousD: roundIndicator(previous.d),
+
+      cross,
+      zone,
+    };
+  }
+
+  public calculateMACD(
+    candles: BybitOHLCVCandle[],
+    fastPeriod = 12,
+    slowPeriod = 26,
+    signalPeriod = 9
+  ): MACDIndicator {
+    const closes =
+      candles.map(candle => candle.close);
+
+    if (
+      closes.length <
+      slowPeriod + signalPeriod + 2
+    ) {
+      throw new Error(
+        `Not enough candles for MACD(` +
+          `${fastPeriod},${slowPeriod},${signalPeriod}). ` +
+          `Received ${closes.length}`
+      );
+    }
+
+    const fastEma =
+      calculateEMA(closes, fastPeriod);
+
+    const slowEma =
+      calculateEMA(closes, slowPeriod);
+
+    const macdSeries: number[] = [];
+    const sourceIndexes: number[] = [];
+
+    for (
+      let i = slowPeriod - 1;
+      i < closes.length;
+      i++
+    ) {
+      if (
+        Number.isFinite(fastEma[i]) &&
+        Number.isFinite(slowEma[i])
+      ) {
+        macdSeries.push(
+          fastEma[i] - slowEma[i]
+        );
+
+        sourceIndexes.push(i);
+      }
+    }
+
+    const signalSeries =
+      calculateEMA(
+        macdSeries,
+        signalPeriod
+      );
+
+    const completed: Array<{
+      macd: number;
+      signal: number;
+      histogram: number;
+    }> = [];
+
+    for (
+      let i = 0;
+      i < macdSeries.length;
+      i++
+    ) {
+      if (!Number.isFinite(signalSeries[i])) {
+        continue;
+      }
+
+      completed.push({
+        macd: macdSeries[i],
+        signal: signalSeries[i],
+        histogram:
+          macdSeries[i] - signalSeries[i],
+      });
+    }
+
+    if (completed.length < 2) {
+      throw new Error(
+        'Unable to calculate stable MACD'
+      );
+    }
+
+    const current =
+      completed[completed.length - 1];
+
+    const previous =
+      completed[completed.length - 2];
+
+    let cross: MACDIndicator['cross'];
+
+    if (
+      previous.macd <= previous.signal &&
+      current.macd > current.signal
+    ) {
+      cross = 'BULLISH_CROSS';
+    } else if (
+      previous.macd >= previous.signal &&
+      current.macd < current.signal
+    ) {
+      cross = 'BEARISH_CROSS';
+    } else if (current.macd > current.signal) {
+      cross = 'BULLISH';
+    } else if (current.macd < current.signal) {
+      cross = 'BEARISH';
+    } else {
+      cross = 'NEUTRAL';
+    }
+
+    return {
+      fastPeriod,
+      slowPeriod,
+      signalPeriod,
+
+      macd: roundIndicator(current.macd),
+      signal: roundIndicator(current.signal),
+      histogram:
+        roundIndicator(current.histogram),
+
+      previousMacd:
+        roundIndicator(previous.macd),
+
+      previousSignal:
+        roundIndicator(previous.signal),
+
+      previousHistogram:
+        roundIndicator(previous.histogram),
+
+      cross,
+    };
+  }
+
+  public calculateBollingerBands(
+    candles: BybitOHLCVCandle[],
+    period = 20,
+    standardDeviations = 2
+  ): BollingerIndicator {
+    if (candles.length < period) {
+      throw new Error(
+        `Not enough candles for Bollinger(${period}). ` +
+          `Received ${candles.length}`
+      );
+    }
+
+    const closes =
+      candles.map(candle => candle.close);
+
+    const window =
+      closes.slice(-period);
+
+    const middle =
+      simpleMovingAverage(window);
+
+    const std =
+      standardDeviation(window);
+
+    const upper =
+      middle + standardDeviations * std;
+
+    const lower =
+      middle - standardDeviations * std;
+
+    const currentClose =
+      closes[closes.length - 1];
+
+    const width =
+      upper - lower;
+
+    const bandwidth =
+      middle !== 0
+        ? width / middle
+        : 0;
+
+    const percentB =
+      width !== 0
+        ? (currentClose - lower) / width
+        : 0.5;
+
+    let position:
+      BollingerIndicator['position'];
+
+    if (currentClose > upper) {
+      position = 'ABOVE_UPPER';
+    } else if (percentB >= 0.8) {
+      position = 'NEAR_UPPER';
+    } else if (currentClose < lower) {
+      position = 'BELOW_LOWER';
+    } else if (percentB <= 0.2) {
+      position = 'NEAR_LOWER';
+    } else {
+      position = 'MIDDLE';
+    }
+
+    return {
+      period,
+      standardDeviations,
+
+      upper: roundIndicator(upper),
+      middle: roundIndicator(middle),
+      lower: roundIndicator(lower),
+
+      bandwidth:
+        roundIndicator(bandwidth),
+
+      percentB:
+        roundIndicator(percentB),
+
+      position,
+    };
+  }
+
+  /**
+   * Fetches real Bybit OHLCV data and calculates
+   * KDJ, RSI, MACD and Bollinger Bands.
+   */
+  public async getMarketIndicators(
+    symbol: string,
+    timeframe: BybitCandleTimeframe = '60',
+    candleLimit = 300,
+    useCache = true
+  ): Promise<MarketIndicatorSnapshot> {
+    const normalizedSymbol =
+      symbol.trim().toUpperCase();
+
+    const cacheKey =
+      `${normalizedSymbol}:${timeframe}`;
+
+    const now = Date.now();
+
+    const cached =
+      this.marketAnalysisCache.get(cacheKey);
+
+    /*
+     * Very short cache prevents duplicate Bybit
+     * requests when dashboard + strategy engine
+     * request the same market simultaneously.
+     */
+    if (
+      useCache &&
+      cached &&
+      cached.expiresAt > now
+    ) {
+      return cached.snapshot;
+    }
+
+    const candles =
+      await this.getKlines(
+        normalizedSymbol,
+        timeframe,
+        Math.max(100, candleLimit),
+        true
+      );
+
+    if (candles.length < 50) {
+      throw new Error(
+        `Insufficient closed candle history for ` +
+          `${normalizedSymbol} ${timeframe}. ` +
+          `Received ${candles.length}`
+      );
+    }
+
+    const latestCandle =
+      candles[candles.length - 1];
+
+    const snapshot: MarketIndicatorSnapshot = {
+      symbol: normalizedSymbol,
+      timeframe,
+      candleCount: candles.length,
+
+      latestCandle,
+
+      kdj:
+        this.calculateKDJ(
+          candles,
+          9,
+          3,
+          3
+        ),
+
+      rsi:
+        this.calculateRSI(
+          candles,
+          14
+        ),
+
+      macd:
+        this.calculateMACD(
+          candles,
+          12,
+          26,
+          9
+        ),
+
+      bollinger:
+        this.calculateBollingerBands(
+          candles,
+          20,
+          2
+        ),
+
+      generatedAt:
+        new Date().toISOString(),
+
+      source: 'BYBIT_V5',
+    };
+
+    this.marketAnalysisCache.set(
+      cacheKey,
+      {
+        expiresAt: now + 5_000,
+        snapshot,
+      }
+    );
+
+    return snapshot;
+  }
+
+  public async getMultiTimeframeAnalysis(
+    symbol: string,
+    timeframes: BybitCandleTimeframe[] = [
+      '5',
+      '15',
+      '60',
+      '240',
+      'D',
+    ],
+    candleLimit = 300
+  ): Promise<MultiTimeframeAnalysis> {
+    const normalizedSymbol =
+      symbol.trim().toUpperCase();
+
+    const results =
+      await Promise.allSettled(
+        timeframes.map(timeframe =>
+          this.getMarketIndicators(
+            normalizedSymbol,
+            timeframe,
+            candleLimit
+          )
+        )
+      );
+
+    const analysis:
+      MultiTimeframeAnalysis = {
+        symbol: normalizedSymbol,
+        timeframes: {},
+        generatedAt:
+          new Date().toISOString(),
+      };
+
+    results.forEach((result, index) => {
+      const timeframe = timeframes[index];
+
+      if (result.status === 'fulfilled') {
+        analysis.timeframes[timeframe] =
+          result.value;
+      } else {
+        console.warn(
+          `[BybitTestnetService] ` +
+            `${normalizedSymbol} ${timeframe} ` +
+            `analysis failed:`,
+          result.reason
+        );
+      }
+    });
+
+    return analysis;
+  }
+
+  public async getMarketHistory(
+    symbol: string,
+    timeframe: BybitCandleTimeframe = '60',
+    limit = 300
+  ): Promise<{
+    symbol: string;
+    timeframe: BybitCandleTimeframe;
+    candleCount: number;
+    candles: BybitOHLCVCandle[];
+    source: 'BYBIT_V5';
+    generatedAt: string;
+  }> {
+    const normalizedSymbol =
+      symbol.trim().toUpperCase();
+
+    const candles =
+      await this.getKlines(
+        normalizedSymbol,
+        timeframe,
+        limit,
+        true
+      );
+
+    return {
+      symbol: normalizedSymbol,
+      timeframe,
+      candleCount: candles.length,
+      candles,
+      source: 'BYBIT_V5',
+      generatedAt:
+        new Date().toISOString(),
+    };
+  }
+
   public getStatus() {
     return {
       isConnected: this.isConnected,
@@ -554,6 +1549,51 @@ export class BybitTestnetService {
       config: this.getConfig(),
       balance: this.lastKnownBalance,
       recentOrdersCount: this.recentOrders.length,
+
+      marketAnalysis: {
+        enabled: true,
+        source: 'BYBIT_V5',
+        defaultCandleHistory: 300,
+
+        indicators: {
+          kdj: {
+            period: 9,
+            kSmoothing: 3,
+            dSmoothing: 3,
+          },
+
+          rsi: {
+            period: 14,
+          },
+
+          macd: {
+            fastPeriod: 12,
+            slowPeriod: 26,
+            signalPeriod: 9,
+          },
+
+          bollinger: {
+            period: 20,
+            standardDeviations: 2,
+          },
+        },
+
+        supportedTimeframes: [
+          '1',
+          '3',
+          '5',
+          '15',
+          '30',
+          '60',
+          '120',
+          '240',
+          '360',
+          '720',
+          'D',
+          'W',
+          'M',
+        ],
+      },
     };
   }
 }
