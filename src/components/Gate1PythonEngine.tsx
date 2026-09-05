@@ -316,7 +316,7 @@ export const Gate1PythonEngine: React.FC = () => {
 
                   <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-800/60">
                     <div className="text-indigo-400 font-bold uppercase mb-1">Gate 2: Neutrosophic AHP</div>
-                    <div className="text-slate-400 text-[11px]">Measures conflict & computes Indeterminacy I &lt; 0.28</div>
+                    <div className="text-slate-400 text-[11px]">Measures conflict & computes Indeterminacy I &lt; 0.60</div>
                     <div className="mt-2 text-cyan-400 font-bold">I = 0.082 (CONSENSUS)</div>
                   </div>
 

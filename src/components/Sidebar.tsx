@@ -133,10 +133,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   // Determine Traffic light status for mini badge
-  const isSafetyLock = marketState === 'HIGH_VOLATILITY' || stats.currentIndeterminacy > 0.35;
+  const isSafetyLock = marketState === 'HIGH_VOLATILITY' || stats.currentIndeterminacy > 0.60;
   const isStrategicSilence =
     marketState === 'CONFUSED_CONFLICT' ||
-    stats.currentIndeterminacy > 0.22 ||
+    stats.currentIndeterminacy > 0.55 ||
     (signalsCount === 0 && isRunning);
 
   const pulseColor = isSafetyLock

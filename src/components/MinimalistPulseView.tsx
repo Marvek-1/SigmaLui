@@ -92,7 +92,7 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
   const [showHelpGuide, setShowHelpGuide] = useState<boolean>(false);
 
   // Determine market status
-  const isChoppy = marketState === 'CONFUSED_CONFLICT' || marketState === 'HIGH_VOLATILITY' || stats.currentIndeterminacy > 0.28;
+  const isChoppy = marketState === 'CONFUSED_CONFLICT' || marketState === 'HIGH_VOLATILITY' || stats.currentIndeterminacy > 0.55;
 
   // Active high-probability signals
   const activeSignals = signals.filter(

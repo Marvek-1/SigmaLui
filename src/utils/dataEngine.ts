@@ -492,7 +492,7 @@ export function evaluateSignalTier(
   if (
     decisionScore >= 0.9800 &&
     quorum === '3/3' &&
-    indeterminacy < 0.12 &&
+    indeterminacy < 0.50 &&
     fractalConfluent &&
     hardGates.basis &&
     hardGates.dataFreshness &&
@@ -997,15 +997,16 @@ export class AutonomousSignalPipelineEngine {
     const indeterminacy = neutrosophicConsensus.overallTriple.I;
     this.stats.currentIndeterminacy = indeterminacy;
 
-    // GATE 2: Neutrosophic Consensus & Indeterminacy Gate (Conflict < 0.20 / I < 0.28)
-    if (neutrosophicConsensus.isConfusedState || indeterminacy > 0.28) {
+    // GATE 2: Neutrosophic Consensus & Indeterminacy Gate (Conflict < 0.35 / I < 0.60)
+    const conflictMass = neutrosophicConsensus.Consensus?.ConflictMass ?? 0;
+    if (neutrosophicConsensus.isConfusedState || indeterminacy > 0.60 || conflictMass > 0.35) {
       this.stats.discardedNoiseCount++;
       const silentLog: SilentDiscardLog = {
         id: `noise-${Date.now()}`,
         timestamp,
         asset: `${asset.pair} (${asset.symbol})`,
         gateFailed: 'GATE_2_CONFUSED_INDETERMINACY',
-        reason: `High API conflict detected (Indeterminacy I=${indeterminacy.toFixed(3)} > 0.28). System entered Strategic Silence to protect 95% threshold.`,
+        reason: `High API conflict or indeterminacy detected (Conflict=${conflictMass.toFixed(3)}, Indeterminacy I=${indeterminacy.toFixed(3)} > 0.60). System entered Strategic Silence to protect 95% threshold.`,
         metrics: { indeterminacy },
       };
       this.silentLogs.unshift(silentLog);
@@ -1065,8 +1066,8 @@ export class AutonomousSignalPipelineEngine {
       Math.min(0.9880, Math.max(0.7000, 0.9400 + (rawCi - 0.60) * 0.22)).toFixed(4)
     );
 
-    // GATE 3: TOPSIS High-Conviction Gate (Conviction >= 0.9400 and I < 0.22)
-    if (convictionScore < 0.9400 || indeterminacy >= 0.22) {
+    // GATE 3: TOPSIS High-Conviction Gate (Conviction >= 0.9400 and I <= 0.55)
+    if (convictionScore < 0.9400 || indeterminacy > 0.55) {
       this.stats.discardedNoiseCount++;
       const silentLog: SilentDiscardLog = {
         id: `noise-${Date.now()}`,
