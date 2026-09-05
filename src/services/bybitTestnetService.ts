@@ -307,23 +307,66 @@ export class BybitTestnetService {
     }
   }
 
-  private quantizeQty(val: number, stepStr: string, minQtyStr?: string): string {
+  private quantizeQty(
+    val: number,
+    stepStr: string,
+    minQtyStr?: string
+  ): { qtyStr: string; isRefused: boolean; reason?: string } {
     const step = parseFloat(stepStr) || 0.001;
+    const minQty = minQtyStr ? parseFloat(minQtyStr) : step;
     const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
-    let stepped = Math.floor((val + 1e-12) / step) * step;
-    if (minQtyStr) {
-      const minQty = parseFloat(minQtyStr) || step;
-      if (stepped < minQty) {
-        stepped = minQty;
-      }
+
+    // Strict floor to never exceed requested notional
+    const stepped = Math.floor((val + 1e-12) / step) * step;
+
+    if (stepped <= 0 || stepped < minQty) {
+      return {
+        qtyStr: '0',
+        isRefused: true,
+        reason: `Refused: notional yields ${val.toFixed(4)}, which falls below minimum contract step ${minQtyStr || stepStr}`,
+      };
     }
-    return stepped.toFixed(decimals);
+
+    return {
+      qtyStr: stepped.toFixed(decimals),
+      isRefused: false,
+    };
   }
 
-  private quantizePrice(price: number, tickSizeStr: string): string {
+  /**
+   * Quantizes TP/SL brackets conservatively so quantization NEVER widens risk:
+   * - Stop loss rounds TOWARD entry (strictly tightens stop, reducing max dollar risk)
+   * - Take profit rounds AWAY from entry (ensures full profit target capture)
+   */
+  private quantizeBracket(
+    price: number,
+    side: 'Buy' | 'Sell',
+    isStopLoss: boolean,
+    tickSizeStr: string
+  ): string {
     const tick = parseFloat(tickSizeStr) || 0.01;
     const decimals = tickSizeStr.includes('.') ? tickSizeStr.split('.')[1].length : 2;
-    const stepped = Math.round(price / tick) * tick;
+
+    let stepped: number;
+    if (side === 'Buy') {
+      // Long position: Stop is below entry, TP is above entry
+      if (isStopLoss) {
+        // Round UP toward entry (tighter stop, less risk)
+        stepped = Math.ceil((price - 1e-12) / tick) * tick;
+      } else {
+        // Round UP away from entry (full target)
+        stepped = Math.ceil((price - 1e-12) / tick) * tick;
+      }
+    } else {
+      // Short position: Stop is above entry, TP is below entry
+      if (isStopLoss) {
+        // Round DOWN toward entry (tighter stop, less risk)
+        stepped = Math.floor((price + 1e-12) / tick) * tick;
+      } else {
+        // Round DOWN away from entry (full target)
+        stepped = Math.floor((price + 1e-12) / tick) * tick;
+      }
+    }
     return stepped.toFixed(decimals);
   }
 
@@ -348,11 +391,15 @@ export class BybitTestnetService {
 
     // Calculate contract quantity from notional USD and quantize strictly to Bybit step
     const rawQty = this.config.notionalUsd / markPrice;
-    const qtyStr = this.quantizeQty(rawQty, qtyStepStr, minQtyStr);
+    const { qtyStr, isRefused, reason: refusalReason } = this.quantizeQty(rawQty, qtyStepStr, minQtyStr);
 
-    // Quantize TP/SL bracket strictly to tickSize
-    const tpStr = this.quantizePrice(signal.target1, tickSizeStr);
-    const slStr = this.quantizePrice(signal.stopLoss, tickSizeStr);
+    if (isRefused) {
+      return { ok: false, reason: refusalReason };
+    }
+
+    // Directional quantization for TP/SL: Stop is rounded toward entry (safest risk boundary)
+    const tpStr = this.quantizeBracket(signal.target1, side, false, tickSizeStr);
+    const slStr = this.quantizeBracket(signal.stopLoss, side, true, tickSizeStr);
 
     const payload: Record<string, any> = {
       category: 'linear',
@@ -403,7 +450,7 @@ export class BybitTestnetService {
     await this.loadInstrumentFilters();
     const filter = this.instrumentFilters.get(symbol);
     const qtyStepStr = filter?.qtyStep || '0.001';
-    const qtyStr = this.quantizeQty(size, qtyStepStr);
+    const { qtyStr } = this.quantizeQty(size, qtyStepStr);
 
     const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
     const payload = {
