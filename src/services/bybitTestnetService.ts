@@ -371,35 +371,110 @@ export class BybitTestnetService {
   }
 
   /**
-   * Dispatches an order with atomic TP/SL bracket from a SigmaLui SuperSignal
+   * Fetches real-time markPrice for a linear symbol directly from Bybit
+   */
+  public async getMarkPrice(symbol: string): Promise<number | null> {
+    try {
+      const res = await fetch(`${this.config.baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`);
+      if (res.ok) {
+        const json = await res.json();
+        const item = json.result?.list?.[0];
+        const mark = parseFloat(item?.markPrice || item?.lastPrice || '0');
+        if (mark > 0) return mark;
+      }
+    } catch (err) {
+      console.warn(`[BybitTestnetService] Failed to fetch live mark price for ${symbol}:`, err);
+    }
+    return null;
+  }
+
+  /**
+   * Dispatches an order with atomic TP/SL bracket from a SigmaLui SuperSignal.
+   * Dynamically anchors execution price, sizing, and brackets to Bybit's live mark price
+   * to eliminate cross-venue basis discrepancies (e.g. Binance vs Bybit Testnet basis).
    */
   public async executeSignal(signal: SuperSignal): Promise<{ ok: boolean; order?: BybitOrderResult; reason?: string }> {
     const symbol = `${signal.asset.toUpperCase()}USDT`;
     const side: 'Buy' | 'Sell' = signal.action === 'STRONG_BUY' || signal.action === 'BUY' ? 'Buy' : 'Sell';
-    const markPrice = signal.entryPrice;
 
-    if (!markPrice || markPrice <= 0) {
+    // 1. Fetch Bybit's real-time mark price for exact on-venue anchoring
+    const bybitLivePrice = await this.getMarkPrice(symbol);
+    const executionPrice = bybitLivePrice && bybitLivePrice > 0 ? bybitLivePrice : signal.entryPrice;
+
+    if (!executionPrice || executionPrice <= 0) {
       return { ok: false, reason: `Invalid entry price for ${symbol}` };
     }
 
     await this.loadInstrumentFilters();
 
     const filter = this.instrumentFilters.get(symbol);
-    const qtyStepStr = filter?.qtyStep || (markPrice > 1000 ? '0.001' : markPrice > 100 ? '0.01' : markPrice > 10 ? '0.1' : '1');
+    const qtyStepStr = filter?.qtyStep || (executionPrice > 1000 ? '0.001' : executionPrice > 100 ? '0.01' : executionPrice > 10 ? '0.1' : '1');
     const minQtyStr = filter?.minOrderQty || qtyStepStr;
-    const tickSizeStr = filter?.tickSize || (markPrice > 1000 ? '0.10' : markPrice > 10 ? '0.01' : '0.0001');
+    const tickSizeStr = filter?.tickSize || (executionPrice > 1000 ? '0.10' : executionPrice > 10 ? '0.01' : '0.0001');
 
-    // Calculate contract quantity from notional USD and quantize strictly to Bybit step
-    const rawQty = this.config.notionalUsd / markPrice;
+    // 2. Compute signal risk/reward percentages relative to signal entry price
+    const signalRefPrice = signal.entryPrice > 0 ? signal.entryPrice : executionPrice;
+    let targetPct: number;
+    let stopPct: number;
+
+    if (side === 'Buy') {
+      targetPct = signal.target1 > signalRefPrice ? (signal.target1 - signalRefPrice) / signalRefPrice : 0.024;
+      stopPct = signal.stopLoss < signalRefPrice ? (signalRefPrice - signal.stopLoss) / signalRefPrice : 0.012;
+    } else {
+      targetPct = signal.target1 < signalRefPrice ? (signalRefPrice - signal.target1) / signalRefPrice : 0.024;
+      stopPct = signal.stopLoss > signalRefPrice ? (signal.stopLoss - signalRefPrice) / signalRefPrice : 0.012;
+    }
+
+    // Bound stop and target to sane risk parameters (0.2% to 15% stop, 0.4% to 30% target)
+    stopPct = Math.max(0.002, Math.min(0.15, stopPct));
+    targetPct = Math.max(0.004, Math.min(0.30, targetPct));
+
+    // 3. Anchor TP/SL strictly to Bybit's actual market price at execution time
+    const rawTarget = side === 'Buy' ? executionPrice * (1 + targetPct) : executionPrice * (1 - targetPct);
+    const rawStop = side === 'Buy' ? executionPrice * (1 - stopPct) : executionPrice * (1 + stopPct);
+
+    // Directional quantization: stop rounds toward entry (strictly minimizes dollar loss)
+    const tpStr = this.quantizeBracket(rawTarget, side, false, tickSizeStr);
+    const slStr = this.quantizeBracket(rawStop, side, true, tickSizeStr);
+    const finalTp = parseFloat(tpStr);
+    const finalSl = parseFloat(slStr);
+
+    // 4. Mathematical Invariant Verification: Prevent any inverted TP/SL submission to Bybit
+    if (side === 'Buy') {
+      if (finalSl >= executionPrice) {
+        return {
+          ok: false,
+          reason: `Safety Invariant: Buy stop loss ($${finalSl}) must be lower than Bybit mark price ($${executionPrice})`,
+        };
+      }
+      if (finalTp <= executionPrice) {
+        return {
+          ok: false,
+          reason: `Safety Invariant: Buy take profit ($${finalTp}) must be higher than Bybit mark price ($${executionPrice})`,
+        };
+      }
+    } else {
+      if (finalSl <= executionPrice) {
+        return {
+          ok: false,
+          reason: `Safety Invariant: Sell stop loss ($${finalSl}) must be higher than Bybit mark price ($${executionPrice})`,
+        };
+      }
+      if (finalTp >= executionPrice) {
+        return {
+          ok: false,
+          reason: `Safety Invariant: Sell take profit ($${finalTp}) must be lower than Bybit mark price ($${executionPrice})`,
+        };
+      }
+    }
+
+    // 5. Size position using Bybit's actual contract mark price
+    const rawQty = this.config.notionalUsd / executionPrice;
     const { qtyStr, isRefused, reason: refusalReason } = this.quantizeQty(rawQty, qtyStepStr, minQtyStr);
 
     if (isRefused) {
       return { ok: false, reason: refusalReason };
     }
-
-    // Directional quantization for TP/SL: Stop is rounded toward entry (safest risk boundary)
-    const tpStr = this.quantizeBracket(signal.target1, side, false, tickSizeStr);
-    const slStr = this.quantizeBracket(signal.stopLoss, side, true, tickSizeStr);
 
     const payload: Record<string, any> = {
       category: 'linear',
@@ -426,10 +501,10 @@ export class BybitTestnetService {
         symbol,
         side,
         orderType: 'Market',
-        price: markPrice,
+        price: executionPrice,
         qty: parseFloat(qtyStr),
-        takeProfit: parseFloat(tpStr),
-        stopLoss: parseFloat(slStr),
+        takeProfit: finalTp,
+        stopLoss: finalSl,
         status: 'SUBMITTED',
         createdTime: new Date().toISOString(),
       };
