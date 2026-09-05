@@ -443,9 +443,9 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
             </div>
 
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
-              <span className="font-bold text-amber-400 font-mono block">3. Clear Buy & Exit Targets</span>
+              <span className="font-bold text-amber-400 font-mono block">3. Clear Signal Target & Invalidation Levels</span>
               <p className="text-slate-300">
-                Every trade card gives you the exact Buy Price, Target Profit, and Stop Loss exit points, ready to execute or copy with 1 click.
+                Every signal card provides exact Entry Price, Target Profit, and Stop Loss levels, structured for downstream subscriber bot ingestion.
               </p>
             </div>
           </div>
@@ -458,7 +458,7 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
           <div className="flex items-center space-x-2">
             <Target className="w-5 h-5 text-emerald-400" />
             <h3 className="text-lg font-bold text-white font-mono tracking-tight uppercase">
-              Active Trade Signals ({activeSignals.length})
+              Active Sovereign Signals ({activeSignals.length})
             </h3>
           </div>
           <span className="text-xs font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1 rounded-full">
@@ -585,7 +585,7 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
                     ) : (
                       <>
                         <Copy className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>Copy Trade Setup</span>
+                        <span>Copy Signal Setup</span>
                       </>
                     )}
                   </button>
@@ -603,10 +603,10 @@ export const MinimalistPulseView: React.FC<MinimalistPulseViewProps> = ({
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
             <div>
               <h3 className="text-base font-bold text-white font-mono uppercase tracking-tight">
-                Recent Closed Trades Track Record
+                Recent Signal Outcomes & Verification
               </h3>
               <p className="text-xs text-slate-400 font-sans">
-                Real outcome history of recent signals executed by the system
+                Empirical track record of resolved signals evaluated against live market prices
               </p>
             </div>
           </div>

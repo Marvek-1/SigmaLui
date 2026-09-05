@@ -40,7 +40,7 @@ export function evaluateFractalConfluence(
   const greyError1h = Number((greyError5m * 0.85).toFixed(4));
   const greyError4h = Number((greyError5m * 0.65).toFixed(4));
 
-  const isConfluent = ci1h >= 0.95 && ci4h >= 0.95 && baseCi >= 0.95 && dir1h === baseDirection && dir4h === baseDirection;
+  const isConfluent = ci1h >= 0.91 && ci4h >= 0.89 && baseCi >= 0.9400 && dir1h === baseDirection && dir4h === baseDirection;
   const confluenceScore = Number(((baseCi + ci1h + ci4h) / 3).toFixed(4));
 
   return {

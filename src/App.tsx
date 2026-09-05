@@ -24,7 +24,7 @@ import { MarketRadarView } from './components/MarketRadarView';
 import { AuditorIntelligenceView } from './components/AuditorIntelligenceView';
 import { EngineDiagnosticsView } from './components/EngineDiagnosticsView';
 import { CrossVenueCortexView } from './components/CrossVenueCortexView';
-import { BybitTestnetTerminal } from './components/BybitTestnetTerminal';
+
 import {
   Sidebar,
   NavTab,
@@ -48,7 +48,7 @@ export default function App() {
     try {
       if (typeof window !== 'undefined') {
         const saved = localStorage.getItem('ai_studio_active_tab') as NavTab;
-        if (saved && ['DASHBOARD', 'SIGNAL_PORT', 'SOUL_ADAPTER', 'MARKET', 'AUDITOR', 'SETTINGS', 'CORTEX', 'BYBIT_TESTNET'].includes(saved)) {
+        if (saved && ['DASHBOARD', 'SIGNAL_PORT', 'SOUL_ADAPTER', 'MARKET', 'AUDITOR', 'SETTINGS', 'CORTEX'].includes(saved)) {
           return saved;
         }
       }
@@ -403,12 +403,7 @@ export default function App() {
                 />
               )}
 
-              {/* Layer 1.15: Bybit V5 Unified Testnet Execution Terminal */}
-              {activeTab === 'BYBIT_TESTNET' && (
-                <BybitTestnetTerminal
-                  signals={signals}
-                />
-              )}
+
 
               {/* Layer 1.2: The Super Signal Siphon Port & External Consumer Radar */}
               {activeTab === 'SIGNAL_PORT' && (

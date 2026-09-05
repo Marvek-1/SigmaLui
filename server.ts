@@ -356,24 +356,6 @@ async function syncLivePrices() {
         }
       }
 
-      // Bybit Testnet Auto-Execution Hook
-      if (bybitTestnetService.getConfig().autoTradeEnabled) {
-        for (const sig of freshSignals) {
-          if (sig.topsisScore >= bybitTestnetService.getConfig().minTopsisScore) {
-            bybitTestnetService.executeSignal(sig).then((orderRes) => {
-              if (orderRes.ok) {
-                console.log(`[BybitTestnet] Auto-executed ${sig.asset} (${sig.action}) on Bybit Testnet: orderId=${orderRes.order?.orderId}`);
-                broadcastToClients('BYBIT_ORDER_EXECUTED', {
-                  type: 'BYBIT_ORDER_EXECUTED',
-                  order: orderRes.order,
-                  signal: sig,
-                  serverTimestamp: Date.now(),
-                });
-              }
-            });
-          }
-        }
-      }
     }
 
     // Broadcast live prices & cross-venue frames update periodically
@@ -646,21 +628,7 @@ app.post('/api/cortex/simulate', (req, res) => {
   res.json({ success: true, scenario, frame, frames, telemetry });
 });
 
-// 2d. Bybit V5 Testnet / Demo Trading Endpoints
-app.get('/api/bybit/status', async (req, res) => {
-  const balance = await bybitTestnetService.getWalletBalance();
-  const status = bybitTestnetService.getStatus();
-  res.json({ ...status, balance });
-});
-
-app.get('/api/bybit/positions', async (req, res) => {
-  const positions = await bybitTestnetService.getOpenPositions();
-  res.json({ positions, count: positions.length, timestamp: Date.now() });
-});
-
-app.get('/api/bybit/orders', (req, res) => {
-  res.json({ orders: bybitTestnetService.getRecentOrders(), timestamp: Date.now() });
-});
+// 2d. Read-Only Market Technical Indicators & Klines
 
 app.get('/api/bybit/indicators/:symbol', async (req, res) => {
   try {
@@ -720,52 +688,7 @@ app.get('/api/bybit/fractal/:symbol', async (req, res) => {
   }
 });
 
-app.post('/api/bybit/order', async (req, res) => {
-  const { signalId, asset } = req.body || {};
-  let targetSignal: SuperSignal | undefined;
-  if (signalId) {
-    targetSignal = pipelineEngine.getEmittedSignals().find((s) => s.id === signalId);
-  } else if (asset) {
-    targetSignal = pipelineEngine.getEmittedSignals().find((s) => s.asset.toUpperCase() === asset.toUpperCase());
-  }
 
-  if (!targetSignal) {
-    return res.status(404).json({ ok: false, error: 'Signal not found for execution' });
-  }
-
-  const result = await bybitTestnetService.executeSignal(targetSignal);
-  if (result.ok) {
-    broadcastToClients('BYBIT_ORDER_EXECUTED', {
-      type: 'BYBIT_ORDER_EXECUTED',
-      order: result.order,
-      signal: targetSignal,
-      serverTimestamp: Date.now(),
-    });
-  }
-  res.json(result);
-});
-
-app.post('/api/bybit/close', async (req, res) => {
-  const { symbol, side, size } = req.body || {};
-  if (!symbol || !side || !size) {
-    return res.status(400).json({ ok: false, error: 'Missing required parameters (symbol, side, size)' });
-  }
-  const result = await bybitTestnetService.closePosition(symbol, side, Number(size));
-  res.json(result);
-});
-
-app.post('/api/bybit/config', (req, res) => {
-  const { autoTradeEnabled, notionalUsd, apiKey, apiSecret, baseUrl } = req.body || {};
-  const updates: any = {};
-  if (typeof autoTradeEnabled === 'boolean') updates.autoTradeEnabled = autoTradeEnabled;
-  if (typeof notionalUsd === 'number') updates.notionalUsd = notionalUsd;
-  if (typeof apiKey === 'string' && apiKey.trim()) updates.apiKey = apiKey.trim();
-  if (typeof apiSecret === 'string' && apiSecret.trim()) updates.apiSecret = apiSecret.trim();
-  if (typeof baseUrl === 'string' && baseUrl.trim()) updates.baseUrl = baseUrl.trim();
-
-  bybitTestnetService.updateConfig(updates);
-  res.json({ ok: true, config: bybitTestnetService.getConfig() });
-});
 
 // 3. Ping endpoint for real-time latency measurement
 app.get('/api/ping', (req, res) => {

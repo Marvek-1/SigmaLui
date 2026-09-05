@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { MarketState, PipelineStats } from '../types';
 
-export type NavTab = 'DASHBOARD' | 'CORTEX' | 'BYBIT_TESTNET' | 'SIGNAL_PORT' | 'SOUL_ADAPTER' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
+export type NavTab = 'DASHBOARD' | 'CORTEX' | 'SIGNAL_PORT' | 'SOUL_ADAPTER' | 'MARKET' | 'AUDITOR' | 'SETTINGS';
 export type MarketSubTab = 'UNIVERSE' | 'ORDERBOOK_DEPTH';
 export type AuditorSubTab =
   | 'SOAK_TEST'
@@ -149,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'DASHBOARD' as const,
       label: 'Live Signals',
-      sublabel: 'Trades & Performance',
+      sublabel: 'Super Signals & Verification',
       icon: Activity,
       badge: `${stats.successRatePct.toFixed(1)}% Win Rate`,
       badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-800',
@@ -163,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'SIGNALS',
-          label: 'Active Trade Signals',
+          label: 'Active Sovereign Signals',
           icon: Target,
           badge: `${signalsCount}`,
           onClick: () => onSelectTab('DASHBOARD'),
@@ -171,7 +171,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'LEDGER',
-          label: 'Daily Win/Loss History',
+          label: 'Signal Outcome Verification',
           icon: FileText,
           badge: `${stats.successfulSignals}W / ${stats.failedSignals}L`,
           onClick: () => onSelectTab('DASHBOARD'),
@@ -205,24 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
       ],
     },
-    {
-      id: 'BYBIT_TESTNET' as const,
-      label: 'Bybit Demo Terminal',
-      sublabel: 'V5 Linear Perpetuals Execution',
-      icon: Zap,
-      badge: 'V5 Demo',
-      badgeColor: 'bg-amber-950 text-amber-300 border-amber-800',
-      items: [
-        {
-          id: 'BYBIT_EXEC',
-          label: 'Demo Terminal & Orders',
-          icon: DollarSign,
-          badge: '100k USDT',
-          onClick: () => onSelectTab('BYBIT_TESTNET'),
-          isActive: activeTab === 'BYBIT_TESTNET',
-        },
-      ],
-    },
+
     {
       id: 'SIGNAL_PORT' as const,
       label: 'Super Signal Port',
@@ -241,7 +224,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'TRADE_EFFICACY_RADAR',
-          label: 'Signal Trade Efficacy',
+          label: 'Signal Efficacy Radar',
           icon: Target,
           badge: '85.6% Win Rate',
           onClick: () => onSelectTab('SIGNAL_PORT'),
@@ -317,7 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'AUDITOR' as const,
-      label: 'Trade Tracker & Audit',
+      label: 'Signal Accuracy & Audit',
       sublabel: 'Accuracy & Safety Logs',
       icon: ShieldCheck,
       badge: `${discardsCount} Filtered`,
@@ -325,7 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         {
           id: 'SOAK_TEST' as AuditorSubTab,
-          label: 'Live Trade Tracker',
+          label: 'Signal Outcome Tracker',
           icon: Target,
           badge: '5 Tracked',
           onClick: () => {
