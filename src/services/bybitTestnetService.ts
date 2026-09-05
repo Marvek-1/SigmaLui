@@ -49,6 +49,14 @@ export interface BybitOrderResult {
   createdTime: string;
 }
 
+export interface InstrumentFilter {
+  minOrderQty: string;
+  qtyStep: string;
+  maxOrderQty?: string;
+  minNotionalValue?: string;
+  tickSize: string;
+}
+
 export interface BybitTestnetConfig {
   apiKey: string;
   apiSecret: string;
@@ -67,6 +75,8 @@ export class BybitTestnetService {
   private lastKnownBalance: BybitWalletBalance | null = null;
   private isConnected: boolean = false;
   private lastError: string | null = null;
+  private instrumentFilters: Map<string, InstrumentFilter> = new Map();
+  private lastInstrumentFetch: number = 0;
 
   constructor() {
     this.config = {
@@ -264,6 +274,60 @@ export class BybitTestnetService {
   }
 
   /**
+   * Loads and caches Bybit linear instrument specifications (lotSizeFilter and priceFilter)
+   */
+  public async loadInstrumentFilters(): Promise<void> {
+    const now = Date.now();
+    if (this.instrumentFilters.size > 0 && now - this.lastInstrumentFetch < 3600000) {
+      return;
+    }
+
+    try {
+      const url = `${this.config.baseUrl}/v5/market/instruments-info?category=linear&limit=1000`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.retCode === 0 && Array.isArray(json.result?.list)) {
+          for (const item of json.result.list) {
+            if (item.symbol && item.lotSizeFilter) {
+              this.instrumentFilters.set(item.symbol, {
+                minOrderQty: item.lotSizeFilter.minOrderQty || '0.001',
+                qtyStep: item.lotSizeFilter.qtyStep || '0.001',
+                maxOrderQty: item.lotSizeFilter.maxOrderQty,
+                minNotionalValue: item.lotSizeFilter.minNotionalValue || '5',
+                tickSize: item.priceFilter?.tickSize || '0.01',
+              });
+            }
+          }
+          this.lastInstrumentFetch = now;
+        }
+      }
+    } catch (err) {
+      console.warn('[BybitTestnetService] Failed to load instrument filters:', err);
+    }
+  }
+
+  private quantizeQty(val: number, stepStr: string, minQtyStr?: string): string {
+    const step = parseFloat(stepStr) || 0.001;
+    const decimals = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
+    let stepped = Math.floor((val + 1e-12) / step) * step;
+    if (minQtyStr) {
+      const minQty = parseFloat(minQtyStr) || step;
+      if (stepped < minQty) {
+        stepped = minQty;
+      }
+    }
+    return stepped.toFixed(decimals);
+  }
+
+  private quantizePrice(price: number, tickSizeStr: string): string {
+    const tick = parseFloat(tickSizeStr) || 0.01;
+    const decimals = tickSizeStr.includes('.') ? tickSizeStr.split('.')[1].length : 2;
+    const stepped = Math.round(price / tick) * tick;
+    return stepped.toFixed(decimals);
+  }
+
+  /**
    * Dispatches an order with atomic TP/SL bracket from a SigmaLui SuperSignal
    */
   public async executeSignal(signal: SuperSignal): Promise<{ ok: boolean; order?: BybitOrderResult; reason?: string }> {
@@ -275,23 +339,20 @@ export class BybitTestnetService {
       return { ok: false, reason: `Invalid entry price for ${symbol}` };
     }
 
-    // Calculate contract quantity from notional USD
-    let qty = this.config.notionalUsd / markPrice;
-    // Format precision based on price scale
-    let qtyStr: string;
-    if (markPrice > 1000) {
-      qtyStr = qty.toFixed(3); // e.g. BTC, ETH
-    } else if (markPrice > 10) {
-      qtyStr = qty.toFixed(2); // e.g. SOL, TAO
-    } else if (markPrice > 1) {
-      qtyStr = qty.toFixed(1); // e.g. NEAR, ADA
-    } else {
-      qtyStr = Math.round(qty).toString(); // e.g. DOGE
-    }
+    await this.loadInstrumentFilters();
 
-    if (parseFloat(qtyStr) <= 0) {
-      qtyStr = markPrice > 1000 ? '0.001' : '1';
-    }
+    const filter = this.instrumentFilters.get(symbol);
+    const qtyStepStr = filter?.qtyStep || (markPrice > 1000 ? '0.001' : markPrice > 100 ? '0.01' : markPrice > 10 ? '0.1' : '1');
+    const minQtyStr = filter?.minOrderQty || qtyStepStr;
+    const tickSizeStr = filter?.tickSize || (markPrice > 1000 ? '0.10' : markPrice > 10 ? '0.01' : '0.0001');
+
+    // Calculate contract quantity from notional USD and quantize strictly to Bybit step
+    const rawQty = this.config.notionalUsd / markPrice;
+    const qtyStr = this.quantizeQty(rawQty, qtyStepStr, minQtyStr);
+
+    // Quantize TP/SL bracket strictly to tickSize
+    const tpStr = this.quantizePrice(signal.target1, tickSizeStr);
+    const slStr = this.quantizePrice(signal.stopLoss, tickSizeStr);
 
     const payload: Record<string, any> = {
       category: 'linear',
@@ -301,8 +362,8 @@ export class BybitTestnetService {
       qty: qtyStr,
       timeInForce: 'IOC',
       positionIdx: 0, // One-Way Mode
-      takeProfit: signal.target1.toString(),
-      stopLoss: signal.stopLoss.toString(),
+      takeProfit: tpStr,
+      stopLoss: slStr,
       tpTriggerBy: 'MarkPrice',
       slTriggerBy: 'MarkPrice',
       tpslMode: 'Full',
@@ -320,8 +381,8 @@ export class BybitTestnetService {
         orderType: 'Market',
         price: markPrice,
         qty: parseFloat(qtyStr),
-        takeProfit: signal.target1,
-        stopLoss: signal.stopLoss,
+        takeProfit: parseFloat(tpStr),
+        stopLoss: parseFloat(slStr),
         status: 'SUBMITTED',
         createdTime: new Date().toISOString(),
       };
@@ -339,13 +400,18 @@ export class BybitTestnetService {
    * Closes an open position at Market
    */
   public async closePosition(symbol: string, side: 'Buy' | 'Sell', size: number): Promise<{ ok: boolean; reason?: string }> {
+    await this.loadInstrumentFilters();
+    const filter = this.instrumentFilters.get(symbol);
+    const qtyStepStr = filter?.qtyStep || '0.001';
+    const qtyStr = this.quantizeQty(size, qtyStepStr);
+
     const closeSide = side === 'Buy' ? 'Sell' : 'Buy';
     const payload = {
       category: 'linear',
       symbol,
       side: closeSide,
       orderType: 'Market',
-      qty: size.toString(),
+      qty: qtyStr,
       reduceOnly: true,
       timeInForce: 'IOC',
       positionIdx: 0,
