@@ -1060,14 +1060,14 @@ export class AutonomousSignalPipelineEngine {
     );
 
     // Map Hausdorff raw closeness coefficient to calibrated high-conviction scale.
-    // In Hausdorff metric, Ci >= 0.60 indicates a dominant setup.
+    // In Hausdorff metric with dynamic ideal penalty, Ci >= 0.54 indicates a dominant setup.
     const rawCi = topsisResult.closenessCoefficient;
     const convictionScore = Number(
-      Math.min(0.9880, Math.max(0.7000, 0.9400 + (rawCi - 0.60) * 0.22)).toFixed(4)
+      Math.min(0.9880, Math.max(0.7000, 0.9400 + (rawCi - 0.54) * 0.22)).toFixed(4)
     );
 
-    // GATE 3: TOPSIS High-Conviction Gate (Conviction >= 0.9400 and I <= 0.55)
-    if (convictionScore < 0.9400 || indeterminacy > 0.55) {
+    // GATE 3: TOPSIS High-Conviction Gate (Conviction >= 0.9400 and I <= 0.60)
+    if (convictionScore < 0.9400 || indeterminacy > 0.60) {
       this.stats.discardedNoiseCount++;
       const silentLog: SilentDiscardLog = {
         id: `noise-${Date.now()}`,
