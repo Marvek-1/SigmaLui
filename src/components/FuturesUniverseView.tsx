@@ -144,14 +144,14 @@ export const FuturesUniverseView: React.FC<FuturesUniverseViewProps> = ({
             <div className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-right font-mono">
               <span className="text-[10px] text-slate-400 block uppercase">Total Futures OI</span>
               <span className="text-sm font-bold text-cyan-300">
-                ${(totalOI / 1e9).toFixed(2)}B
+                ${((totalOI || 0) / 1e9).toFixed(2)}B
               </span>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-right font-mono">
               <span className="text-[10px] text-slate-400 block uppercase">Avg 8h Funding</span>
-              <span className={`text-sm font-bold ${avgFunding >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {avgFunding >= 0 ? `+${(avgFunding * 100).toFixed(4)}%` : `${(avgFunding * 100).toFixed(4)}%`}
+              <span className={`text-sm font-bold ${(avgFunding || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {(avgFunding || 0) >= 0 ? `+${((avgFunding || 0) * 100).toFixed(4)}%` : `${((avgFunding || 0) * 100).toFixed(4)}%`}
               </span>
             </div>
 
@@ -359,46 +359,46 @@ export const FuturesUniverseView: React.FC<FuturesUniverseViewProps> = ({
                   {/* Mark Price */}
                   <td className="py-2.5 px-3">
                     <div className="font-semibold text-white">
-                      ${pair.markPrice.toLocaleString(undefined, { minimumFractionDigits: pair.markPrice < 1 ? 4 : 2 })}
+                      ${(pair.markPrice ?? 0).toLocaleString(undefined, { minimumFractionDigits: (pair.markPrice ?? 0) < 1 ? 4 : 2 })}
                     </div>
-                    <div className={`text-[10px] flex items-center ${pair.priceChange24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {pair.priceChange24h >= 0 ? '+' : ''}{pair.priceChange24h.toFixed(2)}%
+                    <div className={`text-[10px] flex items-center ${(pair.priceChange24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {(pair.priceChange24h ?? 0) >= 0 ? '+' : ''}{(pair.priceChange24h ?? 0).toFixed(2)}%
                     </div>
                   </td>
 
                   {/* Basis */}
                   <td className="py-2.5 px-3">
-                    <div className={`text-xs ${pair.basisBps >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {pair.basisBps >= 0 ? '+' : ''}{pair.basisBps.toFixed(1)} bps
+                    <div className={`text-xs ${(pair.basisBps ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {(pair.basisBps ?? 0) >= 0 ? '+' : ''}{(pair.basisBps ?? 0).toFixed(1)} bps
                     </div>
-                    <div className="text-[9px] text-slate-500">Idx: ${pair.indexPrice.toLocaleString(undefined, { minimumFractionDigits: pair.indexPrice < 1 ? 4 : 2 })}</div>
+                    <div className="text-[9px] text-slate-500">Idx: ${(pair.indexPrice ?? 0).toLocaleString(undefined, { minimumFractionDigits: (pair.indexPrice ?? 0) < 1 ? 4 : 2 })}</div>
                   </td>
 
                   {/* 8h Funding Rate */}
                   <td className="py-2.5 px-3">
-                    <div className={`font-semibold ${pair.fundingRate > 0.0002 ? 'text-amber-400' : pair.fundingRate > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {pair.fundingRate >= 0 ? '+' : ''}{(pair.fundingRate * 100).toFixed(4)}%
+                    <div className={`font-semibold ${(pair.fundingRate ?? 0) > 0.0002 ? 'text-amber-400' : (pair.fundingRate ?? 0) > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {(pair.fundingRate ?? 0) >= 0 ? '+' : ''}{((pair.fundingRate ?? 0) * 100).toFixed(4)}%
                     </div>
                     <div className="text-[9px] text-slate-500">
-                      {(pair.fundingRate * 3 * 365 * 100).toFixed(1)}% APR
+                      {((pair.fundingRate ?? 0) * 3 * 365 * 100).toFixed(1)}% APR
                     </div>
                   </td>
 
                   {/* Open Interest */}
                   <td className="py-2.5 px-3">
                     <div className="font-semibold text-cyan-300">
-                      ${(pair.openInterestUsd / 1e6).toFixed(1)}M
+                      ${((pair.openInterestUsd ?? 0) / 1e6).toFixed(1)}M
                     </div>
                     <div className="text-[9px] text-slate-500">
-                      Vol: ${(pair.volume24hUsd / 1e6).toFixed(1)}M
+                      Vol: ${((pair.volume24hUsd ?? 0) / 1e6).toFixed(1)}M
                     </div>
                   </td>
 
                   {/* Long / Short Ratio */}
                   <td className="py-2.5 px-3">
                     <div className="flex items-center space-x-1.5">
-                      <span className={`font-semibold ${pair.topTraderRatio > 1.2 ? 'text-emerald-400' : pair.topTraderRatio < 0.9 ? 'text-rose-400' : 'text-slate-300'}`}>
-                        {pair.topTraderRatio.toFixed(2)}x
+                      <span className={`font-semibold ${(pair.topTraderRatio ?? 1.0) > 1.2 ? 'text-emerald-400' : (pair.topTraderRatio ?? 1.0) < 0.9 ? 'text-rose-400' : 'text-slate-300'}`}>
+                        {(pair.topTraderRatio ?? 1.0).toFixed(2)}x
                       </span>
                     </div>
                     <div className="text-[9px] text-slate-500">Top Accounts</div>
@@ -456,7 +456,7 @@ export const FuturesUniverseView: React.FC<FuturesUniverseViewProps> = ({
             <div className="p-3 bg-emerald-950/30 border border-emerald-500/40 rounded-lg text-emerald-300 space-y-1">
               <div className="flex items-center space-x-2 font-bold text-sm">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>SUPER SIGNAL EMITTED (TOPSIS Ci: {auditResult.signal.topsisScore.toFixed(4)})</span>
+                <span>SUPER SIGNAL EMITTED (TOPSIS Ci: {(auditResult.signal.topsisScore ?? 0).toFixed(4)})</span>
               </div>
               <p className="text-xs text-slate-300">{auditResult.signal.explanation}</p>
               <div className="flex flex-wrap gap-3 pt-2 text-[11px]">

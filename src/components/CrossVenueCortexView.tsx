@@ -812,8 +812,8 @@ const VenueComparisonCard: React.FC<VenueComparisonCardProps> = ({
         </div>
         <div className="text-right">
           <div className="text-[10px] text-slate-400">Basis vs Index</div>
-          <div className={`text-xs font-bold font-mono ${venueState.basisBps >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {venueState.basisBps >= 0 ? '+' : ''}{venueState.basisBps} bps
+          <div className={`text-xs font-bold font-mono ${(venueState.basisBps ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {(venueState.basisBps ?? 0) >= 0 ? '+' : ''}{(venueState.basisBps ?? 0).toFixed(1)} bps
           </div>
         </div>
       </div>
@@ -822,19 +822,32 @@ const VenueComparisonCard: React.FC<VenueComparisonCardProps> = ({
       <div className="space-y-1.5">
         <div className="flex justify-between text-[11px]">
           <span className="text-slate-400">Book Imbalance:</span>
-          <span className={`font-bold font-mono ${venueState.orderbookImbalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {venueState.orderbookImbalance >= 0 ? '+' : ''}{(venueState.orderbookImbalance * 100).toFixed(1)}% {venueState.orderbookImbalance >= 0 ? 'Bids' : 'Asks'}
+          <span className={`font-bold font-mono ${(venueState.orderbookImbalance ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {(venueState.orderbookImbalance ?? 0) >= 0 ? '+' : ''}{((venueState.orderbookImbalance ?? 0) * 100).toFixed(1)}% {(venueState.orderbookImbalance ?? 0) >= 0 ? 'Bids' : 'Asks'}
           </span>
         </div>
         {/* Visual Bar */}
         <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
           <div
             className="bg-emerald-500 h-full transition-all"
-            style={{ width: `${Math.max(5, Math.min(95, (venueState.orderbookImbalance + 1) * 50))}%` }}
+            style={{ width: `${Math.max(5, Math.min(95, ((venueState.orderbookImbalance ?? 0) + 1) * 50))}%` }}
           />
           <div
-            className="bg-rose-500 h-full transition-all flex-1"
+            className="bg-rose-500 h-full transition-all"
+            style={{ width: `${Math.max(5, Math.min(95, (1 - (venueState.orderbookImbalance ?? 0)) * 50))}%` }}
           />
+        </div>
+      </div>
+
+      {/* Real-time Derivative Attributes */}
+      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px] font-mono">
+        <div>
+          <div className="text-slate-500 text-[10px]">Funding Rate</div>
+          <div className="font-bold text-white">+{(Number(venueState.fundingRate || 0) * 100).toFixed(4)}%</div>
+        </div>
+        <div>
+          <div className="text-slate-500 text-[10px]">OI 24h Delta</div>
+          <div className="font-bold text-emerald-400">+{(Number(venueState.openInterestDelta || 0) * 100).toFixed(1)}%</div>
         </div>
       </div>
 
@@ -843,16 +856,6 @@ const VenueComparisonCard: React.FC<VenueComparisonCardProps> = ({
         <div className="bg-slate-950/40 p-2 rounded-lg">
           <div className="text-slate-500 text-[10px]">Spread</div>
           <div className="font-bold text-white">{venueState.spreadBps} bps</div>
-        </div>
-
-        <div className="bg-slate-950/40 p-2 rounded-lg">
-          <div className="text-slate-500 text-[10px]">Funding Rate</div>
-          <div className="font-bold text-white">+{(venueState.fundingRate * 100).toFixed(4)}%</div>
-        </div>
-
-        <div className="bg-slate-950/40 p-2 rounded-lg">
-          <div className="text-slate-500 text-[10px]">OI Delta</div>
-          <div className="font-bold text-emerald-400">+{(venueState.openInterestDelta * 100).toFixed(1)}%</div>
         </div>
 
         <div className="bg-slate-950/40 p-2 rounded-lg">

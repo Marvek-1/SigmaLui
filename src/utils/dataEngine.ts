@@ -677,10 +677,11 @@ export class AutonomousSignalPipelineEngine {
           asset.indexPrice = asset.markPrice;
         }
 
-        if (typeof match.basisBps === 'number') {
+        if (typeof match.basisBps === 'number' && Number.isFinite(match.basisBps)) {
           asset.basisBps = match.basisBps;
         } else {
-          asset.basisBps = Number((((asset.markPrice - asset.indexPrice) / asset.indexPrice) * 10000).toFixed(2));
+          const rawBasis = asset.indexPrice > 0 ? (((asset.markPrice - asset.indexPrice) / asset.indexPrice) * 10000) : 0;
+          asset.basisBps = Number.isFinite(rawBasis) ? Number(rawBasis.toFixed(2)) : 0;
         }
 
         if (typeof match.priceChange24h === 'number') {
@@ -896,7 +897,8 @@ export class AutonomousSignalPipelineEngine {
     const newPrice = Number((asset.markPrice + priceDrift).toFixed(asset.markPrice < 1 ? 4 : 2));
     asset.markPrice = newPrice;
     asset.indexPrice = Number((newPrice * 0.9999).toFixed(asset.markPrice < 1 ? 4 : 2));
-    asset.basisBps = Number((((asset.markPrice - asset.indexPrice) / asset.indexPrice) * 10000).toFixed(2));
+    const rawBasis = asset.indexPrice > 0 ? (((asset.markPrice - asset.indexPrice) / asset.indexPrice) * 10000) : 0;
+    asset.basisBps = Number.isFinite(rawBasis) ? Number(rawBasis.toFixed(2)) : 0;
     asset.priceHistory.shift();
     asset.priceHistory.push(newPrice);
 

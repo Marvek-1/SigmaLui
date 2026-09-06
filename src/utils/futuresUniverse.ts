@@ -946,10 +946,15 @@ export function calculateSqueezePressure(pair: CryptoFuturesPair): {
   squeezeCategory: 'EXTREME' | 'HIGH' | 'MODERATE' | 'LOW';
   description: string;
 } {
+  const fundingRate = typeof pair?.fundingRate === 'number' && Number.isFinite(pair.fundingRate) ? pair.fundingRate : 0;
+  const oiChange24hPct = typeof pair?.oiChange24hPct === 'number' && Number.isFinite(pair.oiChange24hPct) ? pair.oiChange24hPct : 0;
+  const topTraderRatio = typeof pair?.topTraderRatio === 'number' && Number.isFinite(pair.topTraderRatio) ? pair.topTraderRatio : 1.0;
+  const basisBps = typeof pair?.basisBps === 'number' && Number.isFinite(pair.basisBps) ? pair.basisBps : 0;
+
   // Negative funding + surging OI + high top trader long ratio = High Squeeze Pressure
-  const fundingComponent = pair.fundingRate < 0 ? Math.abs(pair.fundingRate) * 10000 * 2 : 10;
-  const oiComponent = Math.min(40, pair.oiChange24hPct * 1.5);
-  const ratioComponent = Math.min(30, pair.topTraderRatio * 10);
+  const fundingComponent = fundingRate < 0 ? Math.abs(fundingRate) * 10000 * 2 : 10;
+  const oiComponent = Math.min(40, oiChange24hPct * 1.5);
+  const ratioComponent = Math.min(30, topTraderRatio * 10);
   const score = Math.min(99, Math.max(10, Math.round(fundingComponent + oiComponent + ratioComponent)));
 
   let category: 'EXTREME' | 'HIGH' | 'MODERATE' | 'LOW' = 'LOW';
@@ -962,7 +967,7 @@ export function calculateSqueezePressure(pair: CryptoFuturesPair): {
     squeezeCategory: category,
     description:
       category === 'EXTREME'
-        ? `Violent Short Squeeze Impending: Negative funding (-${(Math.abs(pair.fundingRate) * 100).toFixed(3)}%) with +${pair.oiChange24hPct}% OI expansion.`
-        : `Normal market positioning with healthy derivative basis spread (${pair.basisBps.toFixed(1)} bps).`,
+        ? `Violent Short Squeeze Impending: Negative funding (-${(Math.abs(fundingRate) * 100).toFixed(3)}%) with +${oiChange24hPct}% OI expansion.`
+        : `Normal market positioning with healthy derivative basis spread (${basisBps.toFixed(1)} bps).`,
   };
 }

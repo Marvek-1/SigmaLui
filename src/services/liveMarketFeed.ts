@@ -134,8 +134,10 @@ export async function fetchLiveBinanceFuturesData(): Promise<Record<string, Live
 
       if (p && t && Number(p.markPrice) > 0) {
         const markPrice = Number(p.markPrice) * multiplier;
-        const indexPrice = Number(p.indexPrice) * multiplier;
-        const basisBps = Number((((markPrice - indexPrice) / indexPrice) * 10000).toFixed(2));
+        const rawIndex = Number(p.indexPrice) * multiplier;
+        const indexPrice = rawIndex > 0 ? rawIndex : markPrice;
+        const rawBasis = indexPrice > 0 ? (((markPrice - indexPrice) / indexPrice) * 10000) : 0;
+        const basisBps = Number.isFinite(rawBasis) ? Number(rawBasis.toFixed(2)) : 0;
         const priceChange24h = Number(t.priceChangePercent) || 0;
         const volume24hUsd = Number(t.quoteVolume) || 0;
         const fundingRate = Number(p.lastFundingRate) || 0.0001;
